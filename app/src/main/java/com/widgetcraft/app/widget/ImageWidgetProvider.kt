@@ -23,6 +23,14 @@ class ImageWidgetProvider : AppWidgetProvider() {
         }
     }
 
+    override fun onDeleted(context: Context, appWidgetIds: IntArray) {
+        super.onDeleted(context, appWidgetIds)
+        val storage = WidgetStorage(context)
+        for (id in appWidgetIds) {
+            storage.removeBinding(id)
+        }
+    }
+
     override fun onReceive(context: Context, intent: Intent) {
         super.onReceive(context, intent)
         if (intent.action == ACTION_CYCLE_IMAGE) {
@@ -49,7 +57,7 @@ class ImageWidgetProvider : AppWidgetProvider() {
             appWidgetId: Int,
             storage: WidgetStorage = WidgetStorage(context)
         ) {
-            val config = storage.getImageConfigForWidgetId(appWidgetId) ?: ImageWidgetConfig(appWidgetId = appWidgetId)
+            val config = storage.getImageConfigForWidgetId(appWidgetId) ?: ImageWidgetConfig()
             val views = RemoteViews(context.packageName, R.layout.widget_image)
 
             val bitmap = WidgetRenderer.renderImageWidget(context, config)
@@ -66,7 +74,7 @@ class ImageWidgetProvider : AppWidgetProvider() {
                         context,
                         appWidgetId,
                         intent,
-                        PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+                        PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE
                     )
                 }
                 TapActionType.OPEN_URL -> {
@@ -92,7 +100,7 @@ class ImageWidgetProvider : AppWidgetProvider() {
                             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
                         )
                     } else {
-                        getDefaultAppIntent(context, appWidgetId)
+                        getDefaultAppIntent(context, appWidgetId, config.id)
                     }
                 }
                 TapActionType.OPEN_GALLERY -> {
@@ -108,7 +116,7 @@ class ImageWidgetProvider : AppWidgetProvider() {
                     )
                 }
                 TapActionType.NONE -> {
-                    getDefaultAppIntent(context, appWidgetId)
+                    getDefaultAppIntent(context, appWidgetId, config.id)
                 }
             }
 
@@ -116,16 +124,18 @@ class ImageWidgetProvider : AppWidgetProvider() {
             appWidgetManager.updateAppWidget(appWidgetId, views)
         }
 
-        private fun getDefaultAppIntent(context: Context, appWidgetId: Int): PendingIntent {
+        private fun getDefaultAppIntent(context: Context, appWidgetId: Int, presetId: String): PendingIntent {
             val intent = Intent(context, MainActivity::class.java).apply {
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
-                putExtra("edit_image_widget_id", appWidgetId)
+                putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
+                putExtra("edit_preset_id", presetId)
+                putExtra("widget_type", "IMAGE")
             }
             return PendingIntent.getActivity(
                 context,
                 appWidgetId,
                 intent,
-                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE
             )
         }
 

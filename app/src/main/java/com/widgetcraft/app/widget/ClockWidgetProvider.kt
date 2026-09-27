@@ -22,6 +22,14 @@ class ClockWidgetProvider : AppWidgetProvider() {
         }
     }
 
+    override fun onDeleted(context: Context, appWidgetIds: IntArray) {
+        super.onDeleted(context, appWidgetIds)
+        val storage = WidgetStorage(context)
+        for (id in appWidgetIds) {
+            storage.removeBinding(id)
+        }
+    }
+
     override fun onReceive(context: Context, intent: Intent) {
         super.onReceive(context, intent)
         val action = intent.action
@@ -41,13 +49,12 @@ class ClockWidgetProvider : AppWidgetProvider() {
             appWidgetId: Int,
             storage: WidgetStorage = WidgetStorage(context)
         ) {
-            val config = storage.getClockConfigForWidgetId(appWidgetId) ?: ClockWidgetConfig(appWidgetId = appWidgetId)
+            val config = storage.getClockConfigForWidgetId(appWidgetId) ?: ClockWidgetConfig()
             val views = RemoteViews(context.packageName, R.layout.widget_clock)
 
             val bitmap = WidgetRenderer.renderClockWidget(context, config)
             views.setImageViewBitmap(R.id.widget_clock_image_view, bitmap)
 
-            // Tap action to launch clock or configure
             val clockIntent = Intent(AlarmClock.ACTION_SHOW_ALARMS).apply {
                 flags = Intent.FLAG_ACTIVITY_NEW_TASK
             }
@@ -61,13 +68,15 @@ class ClockWidgetProvider : AppWidgetProvider() {
             } catch (e: Exception) {
                 val fallbackIntent = Intent(context, MainActivity::class.java).apply {
                     flags = Intent.FLAG_ACTIVITY_NEW_TASK
-                    putExtra("edit_clock_widget_id", appWidgetId)
+                    putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
+                    putExtra("edit_preset_id", config.id)
+                    putExtra("widget_type", "CLOCK")
                 }
                 PendingIntent.getActivity(
                     context,
                     appWidgetId,
                     fallbackIntent,
-                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE
                 )
             }
 

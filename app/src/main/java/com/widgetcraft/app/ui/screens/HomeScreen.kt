@@ -1,11 +1,8 @@
 package com.widgetcraft.app.ui.screens
 
-import android.appwidget.AppWidgetManager
-import android.content.ComponentName
 import android.content.Context
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -112,6 +109,7 @@ fun HomeScreen(
             when (selectedTab) {
                 0 -> PhotoWidgetsList(
                     context = context,
+                    storage = storage,
                     widgets = imageWidgets,
                     onEdit = onNavigateToImageEditor,
                     onDelete = { id ->
@@ -122,6 +120,7 @@ fun HomeScreen(
                 )
                 1 -> ClockWidgetsList(
                     context = context,
+                    storage = storage,
                     widgets = clockWidgets,
                     onEdit = onNavigateToClockEditor,
                     onDelete = { id ->
@@ -132,6 +131,7 @@ fun HomeScreen(
                 )
                 2 -> IconWidgetsList(
                     context = context,
+                    storage = storage,
                     widgets = iconWidgets,
                     onEdit = onNavigateToIconChanger,
                     onDelete = { id ->
@@ -148,6 +148,7 @@ fun HomeScreen(
 @Composable
 fun PhotoWidgetsList(
     context: Context,
+    storage: WidgetStorage,
     widgets: List<ImageWidgetConfig>,
     onEdit: (String) -> Unit,
     onDelete: (String) -> Unit
@@ -164,6 +165,11 @@ fun PhotoWidgetsList(
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             items(widgets, key = { it.id }) { widget ->
+                val boundCount = remember(widget) { storage.getWidgetIdsForPreset(widget.id).size }
+                val bitmap = remember(widget) {
+                    WidgetRenderer.renderImageWidget(context, widget, targetWidth = 400, targetHeight = 400)
+                }
+
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(16.dp),
@@ -175,7 +181,16 @@ fun PhotoWidgetsList(
                             horizontalArrangement = Arrangement.SpaceBetween,
                             modifier = Modifier.fillMaxWidth()
                         ) {
-                            Text(widget.name, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                            Column {
+                                Text(widget.name, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                                if (boundCount > 0) {
+                                    Text(
+                                        "Active on Home Screen ($boundCount)",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.primary
+                                    )
+                                }
+                            }
                             Row {
                                 IconButton(onClick = { onEdit(widget.id) }) {
                                     Icon(Icons.Default.Edit, contentDescription = "Edit")
@@ -188,10 +203,6 @@ fun PhotoWidgetsList(
 
                         Spacer(Modifier.height(8.dp))
 
-                        // Preview
-                        val bitmap = remember(widget) {
-                            WidgetRenderer.renderImageWidget(context, widget, targetWidth = 400, targetHeight = 400)
-                        }
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -207,13 +218,26 @@ fun PhotoWidgetsList(
                             )
                         }
 
-                        Spacer(Modifier.height(8.dp))
+                        Spacer(Modifier.height(12.dp))
 
-                        Text(
-                            text = "Layout: ${widget.layout.name.replace('_', ' ')} • Shape: ${widget.shape.name}",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                        // One-tap Add to Home Screen button
+                        Button(
+                            onClick = {
+                                WidgetPinManager.requestPinWidget(
+                                    context = context,
+                                    providerClass = ImageWidgetProvider::class.java,
+                                    presetId = widget.id,
+                                    widgetType = "IMAGE",
+                                    previewBitmap = bitmap
+                                )
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+                        ) {
+                            Icon(Icons.Default.AddToHomeScreen, null)
+                            Spacer(Modifier.width(8.dp))
+                            Text("Add to Home Screen")
+                        }
                     }
                 }
             }
@@ -224,6 +248,7 @@ fun PhotoWidgetsList(
 @Composable
 fun ClockWidgetsList(
     context: Context,
+    storage: WidgetStorage,
     widgets: List<ClockWidgetConfig>,
     onEdit: (String) -> Unit,
     onDelete: (String) -> Unit
@@ -240,6 +265,11 @@ fun ClockWidgetsList(
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             items(widgets, key = { it.id }) { widget ->
+                val boundCount = remember(widget) { storage.getWidgetIdsForPreset(widget.id).size }
+                val bitmap = remember(widget) {
+                    WidgetRenderer.renderClockWidget(context, widget, targetWidth = 600, targetHeight = 300)
+                }
+
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(16.dp),
@@ -251,7 +281,16 @@ fun ClockWidgetsList(
                             horizontalArrangement = Arrangement.SpaceBetween,
                             modifier = Modifier.fillMaxWidth()
                         ) {
-                            Text(widget.name, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                            Column {
+                                Text(widget.name, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                                if (boundCount > 0) {
+                                    Text(
+                                        "Active on Home Screen ($boundCount)",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.primary
+                                    )
+                                }
+                            }
                             Row {
                                 IconButton(onClick = { onEdit(widget.id) }) {
                                     Icon(Icons.Default.Edit, contentDescription = "Edit")
@@ -264,9 +303,6 @@ fun ClockWidgetsList(
 
                         Spacer(Modifier.height(8.dp))
 
-                        val bitmap = remember(widget) {
-                            WidgetRenderer.renderClockWidget(context, widget, targetWidth = 600, targetHeight = 300)
-                        }
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -282,13 +318,25 @@ fun ClockWidgetsList(
                             )
                         }
 
-                        Spacer(Modifier.height(8.dp))
+                        Spacer(Modifier.height(12.dp))
 
-                        Text(
-                            text = "Style: ${widget.style.name.replace('_', ' ')} • Format: ${if (widget.is24Hour) "24h" else "12h"}",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                        Button(
+                            onClick = {
+                                WidgetPinManager.requestPinWidget(
+                                    context = context,
+                                    providerClass = ClockWidgetProvider::class.java,
+                                    presetId = widget.id,
+                                    widgetType = "CLOCK",
+                                    previewBitmap = bitmap
+                                )
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+                        ) {
+                            Icon(Icons.Default.AddToHomeScreen, null)
+                            Spacer(Modifier.width(8.dp))
+                            Text("Add to Home Screen")
+                        }
                     }
                 }
             }
@@ -299,6 +347,7 @@ fun ClockWidgetsList(
 @Composable
 fun IconWidgetsList(
     context: Context,
+    storage: WidgetStorage,
     widgets: List<IconWidgetConfig>,
     onEdit: (String) -> Unit,
     onDelete: (String) -> Unit
@@ -315,48 +364,77 @@ fun IconWidgetsList(
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             items(widgets, key = { it.id }) { widget ->
+                val boundCount = remember(widget) { storage.getWidgetIdsForPreset(widget.id).size }
+                val bitmap = remember(widget) {
+                    WidgetRenderer.renderIcon(context, widget, targetSize = 160)
+                }
+
                 Card(
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(16.dp),
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
                 ) {
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(16.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        val bitmap = remember(widget) {
-                            WidgetRenderer.renderIcon(context, widget, targetSize = 160)
-                        }
-                        Image(
-                            bitmap = bitmap.asImageBitmap(),
-                            contentDescription = null,
-                            modifier = Modifier
-                                .size(64.dp)
-                                .clip(RoundedCornerShape(12.dp))
-                        )
-
-                        Spacer(Modifier.width(16.dp))
-
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = widget.label.ifBlank { "Untitled Icon" },
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 16.sp
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Image(
+                                bitmap = bitmap.asImageBitmap(),
+                                contentDescription = null,
+                                modifier = Modifier
+                                    .size(56.dp)
+                                    .clip(RoundedCornerShape(12.dp))
                             )
-                            Text(
-                                text = widget.targetPackageName,
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
+
+                            Spacer(Modifier.width(16.dp))
+
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = widget.label.ifBlank { "Untitled Icon" },
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 16.sp
+                                )
+                                Text(
+                                    text = widget.targetPackageName,
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                if (boundCount > 0) {
+                                    Text(
+                                        "Placed on Home Screen ($boundCount)",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.primary
+                                    )
+                                }
+                            }
+
+                            IconButton(onClick = { onEdit(widget.id) }) {
+                                Icon(Icons.Default.Edit, contentDescription = "Edit")
+                            }
+                            IconButton(onClick = { onDelete(widget.id) }) {
+                                Icon(Icons.Default.Delete, contentDescription = "Delete", tint = MaterialTheme.colorScheme.error)
+                            }
                         }
 
-                        IconButton(onClick = { onEdit(widget.id) }) {
-                            Icon(Icons.Default.Edit, contentDescription = "Edit")
-                        }
-                        IconButton(onClick = { onDelete(widget.id) }) {
-                            Icon(Icons.Default.Delete, contentDescription = "Delete", tint = MaterialTheme.colorScheme.error)
+                        Spacer(Modifier.height(10.dp))
+
+                        Button(
+                            onClick = {
+                                WidgetPinManager.requestPinWidget(
+                                    context = context,
+                                    providerClass = IconWidgetProvider::class.java,
+                                    presetId = widget.id,
+                                    widgetType = "ICON",
+                                    previewBitmap = bitmap
+                                )
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+                        ) {
+                            Icon(Icons.Default.AddToHomeScreen, null)
+                            Spacer(Modifier.width(8.dp))
+                            Text("Add Micro-Widget (No Badge)")
                         }
                     }
                 }

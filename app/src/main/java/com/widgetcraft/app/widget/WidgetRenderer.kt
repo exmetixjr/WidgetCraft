@@ -5,6 +5,8 @@ import android.content.Intent
 import android.content.IntentFilter
 import android.graphics.*
 import android.os.BatteryManager
+import android.os.Environment
+import android.os.StatFs
 import com.widgetcraft.app.data.*
 import java.text.SimpleDateFormat
 import java.util.*
@@ -26,12 +28,10 @@ object WidgetRenderer {
         val canvas = Canvas(output)
         val storage = WidgetStorage(context)
 
-        // Background / Canvas
         val bgPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = parseColor(config.backgroundColorHex, Color.DKGRAY)
         }
 
-        // Clip path for custom shape
         val path = createShapePath(
             config.shape,
             RectF(0f, 0f, targetWidth.toFloat(), targetHeight.toFloat()),
@@ -40,7 +40,8 @@ object WidgetRenderer {
         canvas.clipPath(path)
         canvas.drawRect(0f, 0f, targetWidth.toFloat(), targetHeight.toFloat(), bgPaint)
 
-        val bitmaps = config.imageUris.mapNotNull { uri -> storage.loadBitmap(uri) }
+        val rawBitmaps = config.imageUris.mapNotNull { uri -> storage.loadBitmap(uri) }
+        val bitmaps = rawBitmaps.map { applyFilter(it, config.filter) }
 
         if (bitmaps.isEmpty()) {
             drawPlaceholder(canvas, targetWidth, targetHeight, "Tap to configure photo")
@@ -48,43 +49,51 @@ object WidgetRenderer {
             when (config.layout) {
                 CollageLayout.SINGLE -> {
                     val activeIndex = config.currentImageIndex.coerceIn(0, bitmaps.size - 1)
-                    drawBitmapToRect(canvas, bitmaps[activeIndex], RectF(0f, 0f, targetWidth.toFloat(), targetHeight.toFloat()), config.opacity)
+                    drawBitmapToRect(canvas, bitmaps[activeIndex], RectF(0f, 0f, targetWidth.toFloat(), targetHeight.toFloat()), config.opacity, config.scaleType)
                 }
                 CollageLayout.SPLIT_HORIZONTAL -> {
                     val halfW = targetWidth / 2f
-                    drawBitmapToRect(canvas, bitmaps[0], RectF(0f, 0f, halfW - 2f, targetHeight.toFloat()), config.opacity)
+                    drawBitmapToRect(canvas, bitmaps[0], RectF(0f, 0f, halfW - 2f, targetHeight.toFloat()), config.opacity, config.scaleType)
                     val second = bitmaps.getOrElse(1) { bitmaps[0] }
-                    drawBitmapToRect(canvas, second, RectF(halfW + 2f, 0f, targetWidth.toFloat(), targetHeight.toFloat()), config.opacity)
+                    drawBitmapToRect(canvas, second, RectF(halfW + 2f, 0f, targetWidth.toFloat(), targetHeight.toFloat()), config.opacity, config.scaleType)
                 }
                 CollageLayout.SPLIT_VERTICAL -> {
                     val halfH = targetHeight / 2f
-                    drawBitmapToRect(canvas, bitmaps[0], RectF(0f, 0f, targetWidth.toFloat(), halfH - 2f), config.opacity)
+                    drawBitmapToRect(canvas, bitmaps[0], RectF(0f, 0f, targetWidth.toFloat(), halfH - 2f), config.opacity, config.scaleType)
                     val second = bitmaps.getOrElse(1) { bitmaps[0] }
-                    drawBitmapToRect(canvas, second, RectF(0f, halfH + 2f, targetWidth.toFloat(), targetHeight.toFloat()), config.opacity)
+                    drawBitmapToRect(canvas, second, RectF(0f, halfH + 2f, targetWidth.toFloat(), targetHeight.toFloat()), config.opacity, config.scaleType)
                 }
                 CollageLayout.GRID_2X2 -> {
                     val halfW = targetWidth / 2f
                     val halfH = targetHeight / 2f
-                    drawBitmapToRect(canvas, bitmaps[0], RectF(0f, 0f, halfW - 2f, halfH - 2f), config.opacity)
-                    drawBitmapToRect(canvas, bitmaps.getOrElse(1) { bitmaps[0] }, RectF(halfW + 2f, 0f, targetWidth.toFloat(), halfH - 2f), config.opacity)
-                    drawBitmapToRect(canvas, bitmaps.getOrElse(2) { bitmaps[0] }, RectF(0f, halfH + 2f, halfW - 2f, targetHeight.toFloat()), config.opacity)
-                    drawBitmapToRect(canvas, bitmaps.getOrElse(3) { bitmaps[0] }, RectF(halfW + 2f, halfH + 2f, targetWidth.toFloat(), targetHeight.toFloat()), config.opacity)
+                    drawBitmapToRect(canvas, bitmaps[0], RectF(0f, 0f, halfW - 2f, halfH - 2f), config.opacity, config.scaleType)
+                    drawBitmapToRect(canvas, bitmaps.getOrElse(1) { bitmaps[0] }, RectF(halfW + 2f, 0f, targetWidth.toFloat(), halfH - 2f), config.opacity, config.scaleType)
+                    drawBitmapToRect(canvas, bitmaps.getOrElse(2) { bitmaps[0] }, RectF(0f, halfH + 2f, halfW - 2f, targetHeight.toFloat()), config.opacity, config.scaleType)
+                    drawBitmapToRect(canvas, bitmaps.getOrElse(3) { bitmaps[0] }, RectF(halfW + 2f, halfH + 2f, targetWidth.toFloat(), targetHeight.toFloat()), config.opacity, config.scaleType)
                 }
                 CollageLayout.MASONRY_1_2 -> {
                     val halfW = targetWidth / 2f
                     val halfH = targetHeight / 2f
-                    drawBitmapToRect(canvas, bitmaps[0], RectF(0f, 0f, halfW - 2f, targetHeight.toFloat()), config.opacity)
-                    drawBitmapToRect(canvas, bitmaps.getOrElse(1) { bitmaps[0] }, RectF(halfW + 2f, 0f, targetWidth.toFloat(), halfH - 2f), config.opacity)
-                    drawBitmapToRect(canvas, bitmaps.getOrElse(2) { bitmaps[0] }, RectF(halfW + 2f, halfH + 2f, targetWidth.toFloat(), targetHeight.toFloat()), config.opacity)
+                    drawBitmapToRect(canvas, bitmaps[0], RectF(0f, 0f, halfW - 2f, targetHeight.toFloat()), config.opacity, config.scaleType)
+                    drawBitmapToRect(canvas, bitmaps.getOrElse(1) { bitmaps[0] }, RectF(halfW + 2f, 0f, targetWidth.toFloat(), halfH - 2f), config.opacity, config.scaleType)
+                    drawBitmapToRect(canvas, bitmaps.getOrElse(2) { bitmaps[0] }, RectF(halfW + 2f, halfH + 2f, targetWidth.toFloat(), targetHeight.toFloat()), config.opacity, config.scaleType)
                 }
                 CollageLayout.MASONRY_2_1 -> {
                     val halfW = targetWidth / 2f
                     val halfH = targetHeight / 2f
-                    drawBitmapToRect(canvas, bitmaps[0], RectF(0f, 0f, halfW - 2f, halfH - 2f), config.opacity)
-                    drawBitmapToRect(canvas, bitmaps.getOrElse(1) { bitmaps[0] }, RectF(0f, halfH + 2f, halfW - 2f, targetHeight.toFloat()), config.opacity)
-                    drawBitmapToRect(canvas, bitmaps.getOrElse(2) { bitmaps[0] }, RectF(halfW + 2f, 0f, targetWidth.toFloat(), targetHeight.toFloat()), config.opacity)
+                    drawBitmapToRect(canvas, bitmaps[0], RectF(0f, 0f, halfW - 2f, halfH - 2f), config.opacity, config.scaleType)
+                    drawBitmapToRect(canvas, bitmaps.getOrElse(1) { bitmaps[0] }, RectF(0f, halfH + 2f, halfW - 2f, targetHeight.toFloat()), config.opacity, config.scaleType)
+                    drawBitmapToRect(canvas, bitmaps.getOrElse(2) { bitmaps[0] }, RectF(halfW + 2f, 0f, targetWidth.toFloat(), targetHeight.toFloat()), config.opacity, config.scaleType)
                 }
             }
+        }
+
+        // Draw caption or date overlay if configured
+        if (config.captionText.isNotBlank()) {
+            drawCaptionOverlay(canvas, targetWidth, targetHeight, config.captionText, config.captionColorHex, config.captionSizeSp)
+        } else if (config.showDateTag) {
+            val dateTag = SimpleDateFormat("MMM d, yyyy", Locale.getDefault()).format(Date())
+            drawCaptionOverlay(canvas, targetWidth, targetHeight, dateTag, config.captionColorHex, 13f)
         }
 
         // Draw border if configured
@@ -132,12 +141,12 @@ object WidgetRenderer {
             ClockStyle.BOLD_EDITORIAL -> {
                 val timePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                     color = textColor
-                    textSize = targetHeight * 0.42f
+                    textSize = targetHeight * 0.44f
                     typeface = Typeface.create(Typeface.SERIF, Typeface.BOLD)
                 }
                 val amPmPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                     color = accentColor
-                    textSize = targetHeight * 0.15f
+                    textSize = targetHeight * 0.16f
                     typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
                 }
                 val datePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -146,19 +155,44 @@ object WidgetRenderer {
                     typeface = Typeface.DEFAULT
                 }
 
-                val timeY = targetHeight * 0.48f
+                val timeY = targetHeight * 0.50f
                 canvas.drawText(timeString, 48f, timeY, timePaint)
                 if (amPmString.isNotEmpty()) {
                     val timeWidth = timePaint.measureText(timeString)
-                    canvas.drawText(amPmString, 54f + timeWidth, timeY - (targetHeight * 0.22f), amPmPaint)
+                    canvas.drawText(amPmString, 56f + timeWidth, timeY - (targetHeight * 0.20f), amPmPaint)
                 }
 
                 if (config.showDate) {
-                    canvas.drawText(dateString, 48f, timeY + targetHeight * 0.22f, datePaint)
+                    canvas.drawText(dateString, 48f, timeY + targetHeight * 0.24f, datePaint)
                 }
 
+                var badgeRightX = targetWidth - 40f
                 if (config.showBattery) {
-                    drawBatteryBadge(context, canvas, targetWidth - 220f, targetHeight * 0.20f, accentColor)
+                    drawBatteryBadge(context, canvas, badgeRightX - 160f, targetHeight * 0.18f, accentColor)
+                    badgeRightX -= 180f
+                }
+                if (config.showStorage) {
+                    drawStorageBadge(canvas, badgeRightX - 160f, targetHeight * 0.18f, accentColor)
+                }
+            }
+            ClockStyle.DIGITAL_SEVEN_SEGMENT -> {
+                val timePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                    color = accentColor
+                    textSize = targetHeight * 0.46f
+                    typeface = Typeface.MONOSPACE
+                    setShadowLayer(14f, 0f, 0f, accentColor)
+                }
+                val datePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                    color = textColor
+                    textSize = targetHeight * 0.11f
+                    typeface = Typeface.MONOSPACE
+                }
+                canvas.drawText(timeString, 44f, targetHeight * 0.52f, timePaint)
+                if (config.showDate) {
+                    canvas.drawText(dateString.uppercase(), 48f, targetHeight * 0.76f, datePaint)
+                }
+                if (config.showBattery) {
+                    drawBatteryBadge(context, canvas, targetWidth - 200f, targetHeight * 0.18f, accentColor)
                 }
             }
             ClockStyle.TERMINAL -> {
@@ -177,7 +211,7 @@ object WidgetRenderer {
                     canvas.drawText("$dateString", 40f, targetHeight * 0.70f, datePaint)
                 }
                 if (config.showBattery) {
-                    drawBatteryBadge(context, canvas, targetWidth - 220f, targetHeight * 0.20f, accentColor)
+                    drawBatteryBadge(context, canvas, targetWidth - 200f, targetHeight * 0.18f, accentColor)
                 }
             }
             ClockStyle.MINIMAL -> {
@@ -196,7 +230,7 @@ object WidgetRenderer {
                     canvas.drawText(dateString, 44f, targetHeight * 0.75f, datePaint)
                 }
                 if (config.showBattery) {
-                    drawBatteryBadge(context, canvas, targetWidth - 220f, targetHeight * 0.20f, accentColor)
+                    drawBatteryBadge(context, canvas, targetWidth - 200f, targetHeight * 0.18f, accentColor)
                 }
             }
             ClockStyle.ANALOG_MINIMAL, ClockStyle.ANALOG_CLASSIC -> {
@@ -219,7 +253,14 @@ object WidgetRenderer {
         val storage = WidgetStorage(context)
 
         val bgPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = parseColor(config.iconBackgroundColorHex, Color.parseColor("#2B2B2B"))
+            color = when (config.presetStyle) {
+                IconPresetStyle.NEON_CYBER -> Color.parseColor("#0F172A")
+                IconPresetStyle.DARK_GOLD -> Color.parseColor("#18181B")
+                IconPresetStyle.PASTEL_POP -> Color.parseColor("#FDE68A")
+                IconPresetStyle.MINIMAL_GLYPH -> Color.parseColor("#27272A")
+                IconPresetStyle.SQUIRCLE_GLASS -> Color.parseColor("#334155")
+                IconPresetStyle.ORIGINAL -> parseColor(config.iconBackgroundColorHex, Color.parseColor("#2B2B2B"))
+            }
         }
 
         val path = createShapePath(
@@ -230,39 +271,149 @@ object WidgetRenderer {
         canvas.clipPath(path)
         canvas.drawRect(0f, 0f, targetSize.toFloat(), targetSize.toFloat(), bgPaint)
 
-        val bitmap = config.iconImageUri?.let { storage.loadBitmap(it) }
+        val rawBmp = config.iconImageUri?.let { storage.loadBitmap(it) }
             ?: InstalledAppHelper(context).getAppIcon(config.targetPackageName)?.let {
                 InstalledAppHelper(context).drawableToBitmap(it)
             }
 
-        if (bitmap != null) {
-            val padding = targetSize * 0.12f
+        if (rawBmp != null) {
+            val filter = when (config.presetStyle) {
+                IconPresetStyle.MINIMAL_GLYPH -> ImageFilterType.GRAYSCALE
+                IconPresetStyle.DARK_GOLD -> ImageFilterType.SEPIA
+                IconPresetStyle.NEON_CYBER -> ImageFilterType.INVERT
+                else -> ImageFilterType.NONE
+            }
+            val styledBmp = applyFilter(rawBmp, filter)
+            val padding = targetSize * 0.14f
             val dstRect = RectF(padding, padding, targetSize - padding, targetSize - padding)
-            drawBitmapToRect(canvas, bitmap, dstRect, 1.0f)
+            drawBitmapToRect(canvas, styledBmp, dstRect, 1.0f, WidgetScaleType.FIT_CENTER)
+        }
+
+        if (config.presetStyle == IconPresetStyle.NEON_CYBER) {
+            val strokePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                style = Paint.Style.STROKE
+                strokeWidth = 6f
+                color = Color.parseColor("#38BDF8")
+            }
+            canvas.drawPath(path, strokePaint)
         }
 
         return output
     }
 
-    // --- Helper Utilities ---
+    // --- Filters & Helpers ---
 
-    private fun drawBitmapToRect(canvas: Canvas, bitmap: Bitmap, dst: RectF, opacity: Float) {
+    private fun applyFilter(src: Bitmap, filter: ImageFilterType): Bitmap {
+        if (filter == ImageFilterType.NONE) return src
+
+        val out = Bitmap.createBitmap(src.width, src.height, src.config ?: Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(out)
+        val paint = Paint(Paint.ANTI_ALIAS_FLAG)
+
+        val matrix = ColorMatrix()
+        when (filter) {
+            ImageFilterType.GRAYSCALE -> matrix.setSaturation(0f)
+            ImageFilterType.SEPIA -> {
+                matrix.setSaturation(0f)
+                val sepiaMatrix = ColorMatrix(floatArrayOf(
+                    1.0f, 0.0f, 0.0f, 0.0f, 30f,
+                    0.0f, 0.9f, 0.0f, 0.0f, 15f,
+                    0.0f, 0.0f, 0.7f, 0.0f, 0f,
+                    0.0f, 0.0f, 0.0f, 1.0f, 0f
+                ))
+                matrix.postConcat(sepiaMatrix)
+            }
+            ImageFilterType.VINTAGE -> {
+                matrix.set(floatArrayOf(
+                    0.9f, 0.0f, 0.0f, 0.0f, 20f,
+                    0.0f, 0.8f, 0.0f, 0.0f, 10f,
+                    0.0f, 0.0f, 0.6f, 0.0f, 10f,
+                    0.0f, 0.0f, 0.0f, 1.0f, 0f
+                ))
+            }
+            ImageFilterType.WARM -> {
+                matrix.set(floatArrayOf(
+                    1.1f, 0.0f, 0.0f, 0.0f, 20f,
+                    0.0f, 1.0f, 0.0f, 0.0f, 10f,
+                    0.0f, 0.0f, 0.85f, 0.0f, -10f,
+                    0.0f, 0.0f, 0.0f, 1.0f, 0f
+                ))
+            }
+            ImageFilterType.COOL -> {
+                matrix.set(floatArrayOf(
+                    0.85f, 0.0f, 0.0f, 0.0f, -10f,
+                    0.0f, 1.0f, 0.0f, 0.0f, 5f,
+                    0.0f, 0.0f, 1.2f, 0.0f, 20f,
+                    0.0f, 0.0f, 0.0f, 1.0f, 0f
+                ))
+            }
+            ImageFilterType.INVERT -> {
+                matrix.set(floatArrayOf(
+                    -1f, 0f, 0f, 0f, 255f,
+                    0f, -1f, 0f, 0f, 255f,
+                    0f, 0f, -1f, 0f, 255f,
+                    0f, 0f, 0f, 1f, 0f
+                ))
+            }
+            ImageFilterType.NONE -> {}
+        }
+        paint.colorFilter = ColorMatrixColorFilter(matrix)
+        canvas.drawBitmap(src, 0f, 0f, paint)
+        return out
+    }
+
+    private fun drawBitmapToRect(canvas: Canvas, bitmap: Bitmap, dst: RectF, opacity: Float, scaleType: WidgetScaleType) {
         val paint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG).apply {
             alpha = (opacity * 255).toInt().coerceIn(0, 255)
         }
-        val src = Rect(0, 0, bitmap.width, bitmap.height)
 
-        // Center Crop scaling
-        val scale = maxOf(dst.width() / bitmap.width, dst.height() / bitmap.height)
-        val scaledW = bitmap.width * scale
-        val scaledH = bitmap.height * scale
-        val left = dst.left + (dst.width() - scaledW) / 2f
-        val top = dst.top + (dst.height() - scaledH) / 2f
+        when (scaleType) {
+            WidgetScaleType.FILL -> {
+                canvas.drawBitmap(bitmap, null, dst, paint)
+            }
+            WidgetScaleType.FIT_CENTER -> {
+                val scale = minOf(dst.width() / bitmap.width, dst.height() / bitmap.height)
+                val w = bitmap.width * scale
+                val h = bitmap.height * scale
+                val left = dst.left + (dst.width() - w) / 2f
+                val top = dst.top + (dst.height() - h) / 2f
+                canvas.drawBitmap(bitmap, null, RectF(left, top, left + w, top + h), paint)
+            }
+            WidgetScaleType.CENTER_CROP -> {
+                val scale = maxOf(dst.width() / bitmap.width, dst.height() / bitmap.height)
+                val w = bitmap.width * scale
+                val h = bitmap.height * scale
+                val left = dst.left + (dst.width() - w) / 2f
+                val top = dst.top + (dst.height() - h) / 2f
+                canvas.save()
+                canvas.clipRect(dst)
+                canvas.drawBitmap(bitmap, null, RectF(left, top, left + w, top + h), paint)
+                canvas.restore()
+            }
+        }
+    }
 
-        canvas.save()
-        canvas.clipRect(dst)
-        canvas.drawBitmap(bitmap, null, RectF(left, top, left + scaledW, top + scaledH), paint)
-        canvas.restore()
+    private fun drawCaptionOverlay(canvas: Canvas, w: Int, h: Int, text: String, colorHex: String, sizeSp: Float) {
+        val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = parseColor(colorHex, Color.WHITE)
+            textSize = sizeSp * (w / 350f)
+            typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+            textAlign = Paint.Align.CENTER
+            setShadowLayer(8f, 0f, 2f, Color.BLACK)
+        }
+        val pillPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.parseColor("#80000000")
+        }
+
+        val textWidth = paint.measureText(text)
+        val pillRect = RectF(
+            (w / 2f) - (textWidth / 2f) - 24f,
+            h - 70f,
+            (w / 2f) + (textWidth / 2f) + 24f,
+            h - 16f
+        )
+        canvas.drawRoundRect(pillRect, 20f, 20f, pillPaint)
+        canvas.drawText(text, w / 2f, h - 34f, paint)
     }
 
     private fun createShapePath(shape: ShapeType, rect: RectF, radius: Float): Path {
@@ -292,7 +443,7 @@ object WidgetRenderer {
     private fun drawPlaceholder(canvas: Canvas, w: Int, h: Int, text: String) {
         val paint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = Color.LTGRAY
-            textSize = 36f
+            textSize = 34f
             textAlign = Paint.Align.CENTER
         }
         canvas.drawText(text, w / 2f, h / 2f, paint)
@@ -306,20 +457,49 @@ object WidgetRenderer {
         }
         val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = Color.WHITE
-            textSize = 28f
+            textSize = 26f
             typeface = Typeface.DEFAULT_BOLD
         }
-        val rect = RectF(x, y, x + 160f, y + 54f)
-        canvas.drawRoundRect(rect, 27f, 27f, badgePaint)
+        val rect = RectF(x, y, x + 150f, y + 50f)
+        canvas.drawRoundRect(rect, 25f, 25f, badgePaint)
 
         val fillPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = accentColor
             style = Paint.Style.FILL
         }
-        val fillWidth = (160f * (batteryPct / 100f)).coerceIn(10f, 160f)
-        canvas.drawRoundRect(RectF(x, y, x + fillWidth, y + 54f), 27f, 27f, fillPaint)
+        val fillWidth = (150f * (batteryPct / 100f)).coerceIn(10f, 150f)
+        canvas.drawRoundRect(RectF(x, y, x + fillWidth, y + 50f), 25f, 25f, fillPaint)
 
-        canvas.drawText("$batteryPct%", x + 40f, y + 37f, textPaint)
+        canvas.drawText("⚡ $batteryPct%", x + 24f, y + 35f, textPaint)
+    }
+
+    private fun drawStorageBadge(canvas: Canvas, x: Float, y: Float, accentColor: Int) {
+        val stat = StatFs(Environment.getDataDirectory().path)
+        val freeBytes = stat.availableBlocksLong * stat.blockSizeLong
+        val totalBytes = stat.blockCountLong * stat.blockSizeLong
+        val usedPct = if (totalBytes > 0) (((totalBytes - freeBytes).toFloat() / totalBytes.toFloat()) * 100).toInt() else 0
+        val freeGb = (freeBytes / (1024L * 1024L * 1024L)).toInt()
+
+        val badgePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.parseColor("#33FFFFFF")
+            style = Paint.Style.FILL
+        }
+        val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.WHITE
+            textSize = 24f
+            typeface = Typeface.DEFAULT_BOLD
+        }
+        val rect = RectF(x, y, x + 150f, y + 50f)
+        canvas.drawRoundRect(rect, 25f, 25f, badgePaint)
+
+        val fillPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = accentColor
+            style = Paint.Style.FILL
+        }
+        val fillWidth = (150f * (usedPct / 100f)).coerceIn(10f, 150f)
+        canvas.drawRoundRect(RectF(x, y, x + fillWidth, y + 50f), 25f, 25f, fillPaint)
+
+        canvas.drawText("💾 ${freeGb}G", x + 22f, y + 35f, textPaint)
     }
 
     private fun getBatteryPercentage(context: Context): Int {
@@ -349,7 +529,6 @@ object WidgetRenderer {
         }
         canvas.drawCircle(cx, cy, radius, dialPaint)
 
-        // Hour ticks
         for (i in 0 until 12) {
             val angle = Math.toRadians((i * 30).toDouble())
             val x1 = cx + (radius - 20) * sin(angle).toFloat()
@@ -362,7 +541,6 @@ object WidgetRenderer {
         val hours = cal.get(Calendar.HOUR)
         val minutes = cal.get(Calendar.MINUTE)
 
-        // Hour hand
         val hourAngle = Math.toRadians(((hours + minutes / 60.0) * 30).toDouble())
         val hx = cx + (radius * 0.5f) * sin(hourAngle).toFloat()
         val hy = cy - (radius * 0.5f) * cos(hourAngle).toFloat()
@@ -373,7 +551,6 @@ object WidgetRenderer {
         }
         canvas.drawLine(cx, cy, hx, hy, hourPaint)
 
-        // Minute hand
         val minAngle = Math.toRadians((minutes * 6.0).toDouble())
         val mx = cx + (radius * 0.75f) * sin(minAngle).toFloat()
         val my = cy - (radius * 0.75f) * cos(minAngle).toFloat()
@@ -384,7 +561,6 @@ object WidgetRenderer {
         }
         canvas.drawLine(cx, cy, mx, my, minPaint)
 
-        // Center dot
         val dotPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = accentColor
             style = Paint.Style.FILL

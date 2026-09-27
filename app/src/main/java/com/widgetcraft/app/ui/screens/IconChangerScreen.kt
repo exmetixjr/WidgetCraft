@@ -28,13 +28,14 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.widgetcraft.app.data.*
 import com.widgetcraft.app.widget.IconWidgetProvider
+import com.widgetcraft.app.widget.WidgetPinManager
 import com.widgetcraft.app.widget.WidgetRenderer
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun IconChangerScreen(
     storage: WidgetStorage,
-    widgetId: String?,
+    presetId: String?,
     onNavigateBack: () -> Unit
 ) {
     val context = LocalContext.current
@@ -42,7 +43,7 @@ fun IconChangerScreen(
     val installedApps = remember { appHelper.getInstalledLaunchableApps() }
 
     val existingConfig = remember {
-        widgetId?.let { storage.getIconConfig(it) } ?: IconWidgetConfig()
+        presetId?.let { storage.getIconConfig(it) } ?: IconWidgetConfig()
     }
 
     var selectedApp by remember {
@@ -51,6 +52,7 @@ fun IconChangerScreen(
     var customLabel by remember { mutableStateOf(existingConfig.label.ifBlank { selectedApp?.appName ?: "" }) }
     var customIconUri by remember { mutableStateOf(existingConfig.iconImageUri) }
     var selectedShape by remember { mutableStateOf(existingConfig.iconShape) }
+    var selectedPresetStyle by remember { mutableStateOf(existingConfig.presetStyle) }
     var cornerRadius by remember { mutableFloatStateOf(existingConfig.cornerRadiusDp) }
     var showAppPickerSheet by remember { mutableStateOf(false) }
     var searchQuery by remember { mutableStateOf("") }
@@ -66,24 +68,43 @@ fun IconChangerScreen(
         }
     }
 
-    val currentConfig = remember(selectedApp, customLabel, customIconUri, selectedShape, cornerRadius) {
+    val currentConfig = remember(selectedApp, customLabel, customIconUri, selectedShape, selectedPresetStyle, cornerRadius) {
         existingConfig.copy(
             targetPackageName = selectedApp?.packageName ?: "",
             targetActivityName = selectedApp?.activityName ?: "",
             label = customLabel,
             iconImageUri = customIconUri,
             iconShape = selectedShape,
+            presetStyle = selectedPresetStyle,
             cornerRadiusDp = cornerRadius
         )
+    }
+
+    fun saveAndSync() {
+        storage.saveIconConfig(currentConfig)
+        IconWidgetProvider.refreshAllWidgets(context)
     }
 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(if (widgetId == null) "Custom App Icon" else "Edit App Icon") },
+                title = { Text(if (presetId == null) "Custom App Icon" else "Edit App Icon") },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
                         Icon(Icons.Default.ArrowBack, contentDescription = "Back")
+                    }
+                },
+                actions = {
+                    Button(
+                        onClick = {
+                            saveAndSync()
+                            onNavigateBack()
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+                    ) {
+                        Icon(Icons.Default.Check, null)
+                        Spacer(Modifier.width(4.dp))
+                        Text("Save")
                     }
                 }
             )
@@ -98,6 +119,9 @@ fun IconChangerScreen(
             verticalArrangement = Arrangement.spacedBy(20.dp)
         ) {
             // Live Icon Preview
+            val previewBitmap = remember(currentConfig) {
+                WidgetRenderer.renderIcon(context, currentConfig, targetSize = 200)
+            }
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -107,9 +131,6 @@ fun IconChangerScreen(
                 contentAlignment = Alignment.Center
             ) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    val previewBitmap = remember(currentConfig) {
-                        WidgetRenderer.renderIcon(context, currentConfig, targetSize = 200)
-                    }
                     Image(
                         bitmap = previewBitmap.asImageBitmap(),
                         contentDescription = "Icon Preview",
@@ -120,6 +141,50 @@ fun IconChangerScreen(
                         Text(customLabel, fontWeight = FontWeight.Medium, fontSize = 13.sp)
                     }
                 }
+            }
+
+            // Quick Pin Micro-Widget Action
+            Button(
+                onClick = {
+                    saveAndSync()
+                    WidgetPinManager.requestPinWidget(
+                        context = context,
+                        providerClass = IconWidgetProvider::class.java,
+                        presetId = currentConfig.id,
+                        widgetType = "ICON",
+                        previewBitmap = previewBitmap
+                    )
+                },
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+            ) {
+                Icon(Icons.Default.AddToHomeScreen, null)
+                Spacer(Modifier.width(8.dp))
+                Text("Pin Micro-Widget (No Launcher Badge)")
+            }
+
+            // Native Shortcut Fallback Action
+            OutlinedButton(
+                onClick = {
+                    saveAndSync()
+                    val iconBmp = WidgetRenderer.renderIcon(context, currentConfig, targetSize = 192)
+                    val success = appHelper.createPinnedShortcut(
+                        targetPackageName = currentConfig.targetPackageName,
+                        targetActivityName = currentConfig.targetActivityName,
+                        label = currentConfig.label,
+                        iconBitmap = iconBmp
+                    )
+                    if (success) {
+                        Toast.makeText(context, "Shortcut requested on your launcher!", Toast.LENGTH_SHORT).show()
+                    } else {
+                        Toast.makeText(context, "Pinned shortcuts not supported on this launcher. Use the micro-widget instead.", Toast.LENGTH_LONG).show()
+                    }
+                },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Icon(Icons.Default.Shortcut, null)
+                Spacer(Modifier.width(8.dp))
+                Text("Pin as Native Shortcut")
             }
 
             // Target App Selector
@@ -149,6 +214,21 @@ fun IconChangerScreen(
                         }
                     }
                     Icon(Icons.Default.ChevronRight, contentDescription = null)
+                }
+            }
+
+            // Icon Aesthetic Preset Styles
+            Column {
+                Text("Aesthetic Preset Style", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                Spacer(Modifier.height(8.dp))
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    items(IconPresetStyle.values()) { style ->
+                        FilterChip(
+                            selected = selectedPresetStyle == style,
+                            onClick = { selectedPresetStyle = style },
+                            label = { Text(style.name.replace('_', ' ')) }
+                        )
+                    }
                 }
             }
 
@@ -210,50 +290,6 @@ fun IconChangerScreen(
                             label = { Text(shape.name.lowercase().replaceFirstChar { it.uppercase() }) }
                         )
                     }
-                }
-            }
-
-            // Action Buttons
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                // Method 1: Micro-Widget (No Badge)
-                Button(
-                    onClick = {
-                        storage.saveIconConfig(currentConfig)
-                        IconWidgetProvider.refreshAllWidgets(context)
-                        Toast.makeText(context, "Saved! Add the 1x1 'Custom App Icon' widget to your home screen for zero badge.", Toast.LENGTH_LONG).show()
-                        onNavigateBack()
-                    },
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
-                ) {
-                    Icon(Icons.Default.Widgets, null)
-                    Spacer(Modifier.width(8.dp))
-                    Text("Save as Micro-Widget (No Launcher Badge)")
-                }
-
-                // Method 2: Native Pinned Shortcut
-                OutlinedButton(
-                    onClick = {
-                        val iconBmp = WidgetRenderer.renderIcon(context, currentConfig, targetSize = 192)
-                        val success = appHelper.createPinnedShortcut(
-                            targetPackageName = currentConfig.targetPackageName,
-                            targetActivityName = currentConfig.targetActivityName,
-                            label = currentConfig.label,
-                            iconBitmap = iconBmp
-                        )
-                        if (success) {
-                            storage.saveIconConfig(currentConfig)
-                            Toast.makeText(context, "Shortcut requested on your launcher!", Toast.LENGTH_SHORT).show()
-                            onNavigateBack()
-                        } else {
-                            Toast.makeText(context, "Pinned shortcuts not supported on this launcher. Use the micro-widget instead.", Toast.LENGTH_LONG).show()
-                        }
-                    },
-                    modifier = Modifier.fillMaxWidth()
-                ) {
-                    Icon(Icons.Default.Shortcut, null)
-                    Spacer(Modifier.width(8.dp))
-                    Text("Add via Native Shortcut")
                 }
             }
         }

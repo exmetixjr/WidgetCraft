@@ -22,6 +22,14 @@ class IconWidgetProvider : AppWidgetProvider() {
         }
     }
 
+    override fun onDeleted(context: Context, appWidgetIds: IntArray) {
+        super.onDeleted(context, appWidgetIds)
+        val storage = WidgetStorage(context)
+        for (id in appWidgetIds) {
+            storage.removeBinding(id)
+        }
+    }
+
     companion object {
         fun updateWidget(
             context: Context,
@@ -29,7 +37,7 @@ class IconWidgetProvider : AppWidgetProvider() {
             appWidgetId: Int,
             storage: WidgetStorage = WidgetStorage(context)
         ) {
-            val config = storage.getIconConfigForWidgetId(appWidgetId) ?: IconWidgetConfig(appWidgetId = appWidgetId)
+            val config = storage.getIconConfigForWidgetId(appWidgetId) ?: IconWidgetConfig()
             val views = RemoteViews(context.packageName, R.layout.widget_icon)
 
             val bitmap = WidgetRenderer.renderIcon(context, config)
@@ -42,7 +50,6 @@ class IconWidgetProvider : AppWidgetProvider() {
                 views.setViewVisibility(R.id.widget_icon_label, View.GONE)
             }
 
-            // Launch target app intent
             val launchIntent = if (config.targetPackageName.isNotBlank()) {
                 context.packageManager.getLaunchIntentForPackage(config.targetPackageName)?.apply {
                     flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
@@ -59,13 +66,15 @@ class IconWidgetProvider : AppWidgetProvider() {
             } else {
                 val configIntent = Intent(context, MainActivity::class.java).apply {
                     flags = Intent.FLAG_ACTIVITY_NEW_TASK
-                    putExtra("edit_icon_widget_id", appWidgetId)
+                    putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
+                    putExtra("edit_preset_id", config.id)
+                    putExtra("widget_type", "ICON")
                 }
                 PendingIntent.getActivity(
                     context,
                     appWidgetId,
                     configIntent,
-                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE
                 )
             }
 

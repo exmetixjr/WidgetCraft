@@ -18,7 +18,38 @@ class WidgetStorage(private val context: Context) {
         File(context.filesDir, "widget_images").apply { if (!exists()) mkdirs() }
     }
 
-    // --- Image Widgets ---
+    // --- Instance to Preset Bindings ---
+
+    fun getAllBindings(): List<WidgetInstanceBinding> {
+        val json = prefs.getString("widget_instance_bindings", null) ?: return emptyList()
+        val type = object : TypeToken<List<WidgetInstanceBinding>>() {}.type
+        return try {
+            gson.fromJson(json, type) ?: emptyList()
+        } catch (e: Exception) {
+            emptyList()
+        }
+    }
+
+    fun bindWidgetIdToPreset(appWidgetId: Int, presetId: String, widgetType: String) {
+        val list = getAllBindings().filter { it.appWidgetId != appWidgetId }.toMutableList()
+        list.add(WidgetInstanceBinding(appWidgetId, presetId, widgetType))
+        prefs.edit().putString("widget_instance_bindings", gson.toJson(list)).apply()
+    }
+
+    fun getBindingForWidgetId(appWidgetId: Int): WidgetInstanceBinding? {
+        return getAllBindings().find { it.appWidgetId == appWidgetId }
+    }
+
+    fun getWidgetIdsForPreset(presetId: String): List<Int> {
+        return getAllBindings().filter { it.presetId == presetId }.map { it.appWidgetId }
+    }
+
+    fun removeBinding(appWidgetId: Int) {
+        val list = getAllBindings().filter { it.appWidgetId != appWidgetId }
+        prefs.edit().putString("widget_instance_bindings", gson.toJson(list)).apply()
+    }
+
+    // --- Image Widgets Presets ---
 
     fun getAllImageConfigs(): List<ImageWidgetConfig> {
         val json = prefs.getString("image_widgets_list", null) ?: return emptyList()
@@ -35,7 +66,12 @@ class WidgetStorage(private val context: Context) {
     }
 
     fun getImageConfigForWidgetId(appWidgetId: Int): ImageWidgetConfig? {
-        return getAllImageConfigs().find { it.appWidgetId == appWidgetId }
+        val binding = getBindingForWidgetId(appWidgetId)
+        if (binding != null) {
+            val config = getImageConfig(binding.presetId)
+            if (config != null) return config
+        }
+        return getAllImageConfigs().firstOrNull() ?: ImageWidgetConfig()
     }
 
     fun saveImageConfig(config: ImageWidgetConfig) {
@@ -55,7 +91,7 @@ class WidgetStorage(private val context: Context) {
         prefs.edit().putString("image_widgets_list", gson.toJson(list)).apply()
     }
 
-    // --- Clock Widgets ---
+    // --- Clock Widgets Presets ---
 
     fun getAllClockConfigs(): List<ClockWidgetConfig> {
         val json = prefs.getString("clock_widgets_list", null) ?: return emptyList()
@@ -72,7 +108,12 @@ class WidgetStorage(private val context: Context) {
     }
 
     fun getClockConfigForWidgetId(appWidgetId: Int): ClockWidgetConfig? {
-        return getAllClockConfigs().find { it.appWidgetId == appWidgetId }
+        val binding = getBindingForWidgetId(appWidgetId)
+        if (binding != null) {
+            val config = getClockConfig(binding.presetId)
+            if (config != null) return config
+        }
+        return getAllClockConfigs().firstOrNull() ?: ClockWidgetConfig()
     }
 
     fun saveClockConfig(config: ClockWidgetConfig) {
@@ -92,7 +133,7 @@ class WidgetStorage(private val context: Context) {
         prefs.edit().putString("clock_widgets_list", gson.toJson(list)).apply()
     }
 
-    // --- Icon Widgets ---
+    // --- Icon Widgets Presets ---
 
     fun getAllIconConfigs(): List<IconWidgetConfig> {
         val json = prefs.getString("icon_widgets_list", null) ?: return emptyList()
@@ -109,7 +150,12 @@ class WidgetStorage(private val context: Context) {
     }
 
     fun getIconConfigForWidgetId(appWidgetId: Int): IconWidgetConfig? {
-        return getAllIconConfigs().find { it.appWidgetId == appWidgetId }
+        val binding = getBindingForWidgetId(appWidgetId)
+        if (binding != null) {
+            val config = getIconConfig(binding.presetId)
+            if (config != null) return config
+        }
+        return getAllIconConfigs().firstOrNull() ?: IconWidgetConfig()
     }
 
     fun saveIconConfig(config: IconWidgetConfig) {
@@ -129,7 +175,7 @@ class WidgetStorage(private val context: Context) {
         prefs.edit().putString("icon_widgets_list", gson.toJson(list)).apply()
     }
 
-    // --- Local Image Persistence ---
+    // --- Image Storage ---
 
     fun copyUriToInternalStorage(sourceUri: Uri): String? {
         return try {
@@ -139,20 +185,6 @@ class WidgetStorage(private val context: Context) {
                 FileOutputStream(targetFile).use { output ->
                     input.copyTo(output)
                 }
-            }
-            targetFile.absolutePath
-        } catch (e: Exception) {
-            e.printStackTrace()
-            null
-        }
-    }
-
-    fun saveBitmapToInternalStorage(bitmap: Bitmap): String? {
-        return try {
-            val fileName = "icon_${UUID.randomUUID()}.png"
-            val targetFile = File(imagesDir, fileName)
-            FileOutputStream(targetFile).use { output ->
-                bitmap.compress(Bitmap.CompressFormat.PNG, 100, output)
             }
             targetFile.absolutePath
         } catch (e: Exception) {

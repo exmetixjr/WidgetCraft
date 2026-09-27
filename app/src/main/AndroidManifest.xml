@@ -30,7 +30,20 @@
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+            <!-- System Widget Configuration Action -->
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_CONFIGURE" />
+            </intent-filter>
         </activity>
+
+        <!-- Dynamic Pin Callback Receiver -->
+        <receiver
+            android:name=".widget.WidgetPinReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.widgetcraft.app.ACTION_WIDGET_PINNED" />
+            </intent-filter>
+        </receiver>
 
         <!-- Custom Image / Collage Widget Receiver -->
         <receiver

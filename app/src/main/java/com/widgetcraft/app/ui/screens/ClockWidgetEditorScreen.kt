@@ -12,6 +12,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.AddToHomeScreen
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.*
@@ -29,18 +30,19 @@ import com.widgetcraft.app.data.ClockStyle
 import com.widgetcraft.app.data.ClockWidgetConfig
 import com.widgetcraft.app.data.WidgetStorage
 import com.widgetcraft.app.widget.ClockWidgetProvider
+import com.widgetcraft.app.widget.WidgetPinManager
 import com.widgetcraft.app.widget.WidgetRenderer
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ClockWidgetEditorScreen(
     storage: WidgetStorage,
-    widgetId: String?,
+    presetId: String?,
     onNavigateBack: () -> Unit
 ) {
     val context = LocalContext.current
     val existingConfig = remember {
-        widgetId?.let { storage.getClockConfig(it) } ?: ClockWidgetConfig()
+        presetId?.let { storage.getClockConfig(it) } ?: ClockWidgetConfig()
     }
 
     var name by remember { mutableStateOf(existingConfig.name) }
@@ -48,18 +50,20 @@ fun ClockWidgetEditorScreen(
     var is24Hour by remember { mutableStateOf(existingConfig.is24Hour) }
     var showDate by remember { mutableStateOf(existingConfig.showDate) }
     var showBattery by remember { mutableStateOf(existingConfig.showBattery) }
+    var showStorage by remember { mutableStateOf(existingConfig.showStorage) }
     var textColor by remember { mutableStateOf(existingConfig.textColorHex) }
     var accentColor by remember { mutableStateOf(existingConfig.accentColorHex) }
     var backgroundColor by remember { mutableStateOf(existingConfig.backgroundColorHex) }
     var cornerRadius by remember { mutableFloatStateOf(existingConfig.cornerRadiusDp) }
 
-    val currentConfig = remember(name, selectedStyle, is24Hour, showDate, showBattery, textColor, accentColor, backgroundColor, cornerRadius) {
+    val currentConfig = remember(name, selectedStyle, is24Hour, showDate, showBattery, showStorage, textColor, accentColor, backgroundColor, cornerRadius) {
         existingConfig.copy(
             name = name,
             style = selectedStyle,
             is24Hour = is24Hour,
             showDate = showDate,
             showBattery = showBattery,
+            showStorage = showStorage,
             textColorHex = textColor,
             accentColorHex = accentColor,
             backgroundColorHex = backgroundColor,
@@ -67,10 +71,15 @@ fun ClockWidgetEditorScreen(
         )
     }
 
+    fun saveAndSync() {
+        storage.saveClockConfig(currentConfig)
+        ClockWidgetProvider.refreshAllWidgets(context)
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(if (widgetId == null) "New Clock Widget" else "Edit Clock Widget") },
+                title = { Text(if (presetId == null) "New Clock Widget" else "Edit Clock Widget") },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
                         Icon(Icons.Default.ArrowBack, contentDescription = "Back")
@@ -79,8 +88,7 @@ fun ClockWidgetEditorScreen(
                 actions = {
                     Button(
                         onClick = {
-                            storage.saveClockConfig(currentConfig)
-                            ClockWidgetProvider.refreshAllWidgets(context)
+                            saveAndSync()
                             onNavigateBack()
                         },
                         colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
@@ -102,6 +110,9 @@ fun ClockWidgetEditorScreen(
             verticalArrangement = Arrangement.spacedBy(20.dp)
         ) {
             // Live Interactive Preview
+            val previewBitmap = remember(currentConfig) {
+                WidgetRenderer.renderClockWidget(context, currentConfig, targetWidth = 700, targetHeight = 350)
+            }
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -110,14 +121,31 @@ fun ClockWidgetEditorScreen(
                     .background(MaterialTheme.colorScheme.surfaceVariant),
                 contentAlignment = Alignment.Center
             ) {
-                val previewBitmap = remember(currentConfig) {
-                    WidgetRenderer.renderClockWidget(context, currentConfig, targetWidth = 700, targetHeight = 350)
-                }
                 Image(
                     bitmap = previewBitmap.asImageBitmap(),
                     contentDescription = "Clock Preview",
                     modifier = Modifier.fillMaxWidth().height(180.dp).padding(12.dp)
                 )
+            }
+
+            // Quick Pin Action
+            Button(
+                onClick = {
+                    saveAndSync()
+                    WidgetPinManager.requestPinWidget(
+                        context = context,
+                        providerClass = ClockWidgetProvider::class.java,
+                        presetId = currentConfig.id,
+                        widgetType = "CLOCK",
+                        previewBitmap = previewBitmap
+                    )
+                },
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary)
+            ) {
+                Icon(Icons.Default.AddToHomeScreen, null)
+                Spacer(Modifier.width(8.dp))
+                Text("Save & Add to Home Screen")
             }
 
             // Widget Name
@@ -143,7 +171,7 @@ fun ClockWidgetEditorScreen(
                 }
             }
 
-            // Switches: 24h, Date, Battery
+            // Indicators & Switches
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
@@ -165,7 +193,7 @@ fun ClockWidgetEditorScreen(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text("Show Date")
+                        Text("Show Date Line")
                         Switch(checked = showDate, onCheckedChange = { showDate = it })
                     }
 
@@ -176,8 +204,19 @@ fun ClockWidgetEditorScreen(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text("Show Battery Status")
+                        Text("Show Live Battery Gauge")
                         Switch(checked = showBattery, onCheckedChange = { showBattery = it })
+                    }
+
+                    Divider()
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("Show Available Storage Meter")
+                        Switch(checked = showStorage, onCheckedChange = { showStorage = it })
                     }
                 }
             }
@@ -211,30 +250,6 @@ fun ClockWidgetEditorScreen(
                                     shape = CircleShape
                                 )
                                 .clickable { accentColor = hex }
-                        )
-                    }
-                }
-            }
-
-            // Background Color Palette
-            Column {
-                Text("Widget Background", fontWeight = FontWeight.Bold)
-                Spacer(Modifier.height(8.dp))
-                val bgColors = listOf("#1E1E1E", "#000000", "#121A24", "#1F122B", "#1C281F", "#2A1F18")
-                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                    bgColors.forEach { hex ->
-                        val parsed = try { Color(android.graphics.Color.parseColor(hex)) } catch (e: Exception) { Color.DarkGray }
-                        Box(
-                            modifier = Modifier
-                                .size(36.dp)
-                                .clip(CircleShape)
-                                .background(parsed)
-                                .border(
-                                    width = if (backgroundColor == hex) 3.dp else 1.dp,
-                                    color = if (backgroundColor == hex) MaterialTheme.colorScheme.primary else Color.Gray,
-                                    shape = CircleShape
-                                )
-                                .clickable { backgroundColor = hex }
                         )
                     }
                 }

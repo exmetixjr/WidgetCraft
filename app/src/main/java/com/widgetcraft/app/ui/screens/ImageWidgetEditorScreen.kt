@@ -29,33 +29,37 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.widgetcraft.app.data.*
 import com.widgetcraft.app.widget.ImageWidgetProvider
+import com.widgetcraft.app.widget.WidgetPinManager
 import com.widgetcraft.app.widget.WidgetRenderer
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ImageWidgetEditorScreen(
     storage: WidgetStorage,
-    widgetId: String?,
+    presetId: String?,
     onNavigateBack: () -> Unit
 ) {
     val context = LocalContext.current
     val existingConfig = remember {
-        widgetId?.let { storage.getImageConfig(it) } ?: ImageWidgetConfig()
+        presetId?.let { storage.getImageConfig(it) } ?: ImageWidgetConfig()
     }
 
     var name by remember { mutableStateOf(existingConfig.name) }
     var imageUris by remember { mutableStateOf(existingConfig.imageUris.toList()) }
     var selectedLayout by remember { mutableStateOf(existingConfig.layout) }
     var selectedShape by remember { mutableStateOf(existingConfig.shape) }
+    var selectedFilter by remember { mutableStateOf(existingConfig.filter) }
+    var selectedScaleType by remember { mutableStateOf(existingConfig.scaleType) }
     var cornerRadius by remember { mutableFloatStateOf(existingConfig.cornerRadiusDp) }
     var borderWidth by remember { mutableFloatStateOf(existingConfig.borderWidthDp) }
     var borderColor by remember { mutableStateOf(existingConfig.borderColorHex) }
     var backgroundColor by remember { mutableStateOf(existingConfig.backgroundColorHex) }
     var opacity by remember { mutableFloatStateOf(existingConfig.opacity) }
+    var captionText by remember { mutableStateOf(existingConfig.captionText) }
+    var showDateTag by remember { mutableStateOf(existingConfig.showDateTag) }
     var tapAction by remember { mutableStateOf(existingConfig.tapAction) }
     var tapActionTarget by remember { mutableStateOf(existingConfig.tapActionTarget) }
 
-    // Multi-photo picker launcher
     val photoPickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetMultipleContents()
     ) { uris: List<Uri> ->
@@ -65,26 +69,35 @@ fun ImageWidgetEditorScreen(
         }
     }
 
-    val currentConfig = remember(name, imageUris, selectedLayout, selectedShape, cornerRadius, borderWidth, borderColor, backgroundColor, opacity, tapAction, tapActionTarget) {
+    val currentConfig = remember(name, imageUris, selectedLayout, selectedShape, selectedFilter, selectedScaleType, cornerRadius, borderWidth, borderColor, backgroundColor, opacity, captionText, showDateTag, tapAction, tapActionTarget) {
         existingConfig.copy(
             name = name,
             imageUris = imageUris.toMutableList(),
             layout = selectedLayout,
             shape = selectedShape,
+            filter = selectedFilter,
+            scaleType = selectedScaleType,
             cornerRadiusDp = cornerRadius,
             borderWidthDp = borderWidth,
             borderColorHex = borderColor,
             backgroundColorHex = backgroundColor,
             opacity = opacity,
+            captionText = captionText,
+            showDateTag = showDateTag,
             tapAction = tapAction,
             tapActionTarget = tapActionTarget
         )
     }
 
+    fun saveAndSync() {
+        storage.saveImageConfig(currentConfig)
+        ImageWidgetProvider.refreshAllWidgets(context)
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(if (widgetId == null) "New Photo Widget" else "Edit Photo Widget") },
+                title = { Text(if (presetId == null) "New Photo Widget" else "Edit Photo Widget") },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
                         Icon(Icons.Default.ArrowBack, contentDescription = "Back")
@@ -93,8 +106,7 @@ fun ImageWidgetEditorScreen(
                 actions = {
                     Button(
                         onClick = {
-                            storage.saveImageConfig(currentConfig)
-                            ImageWidgetProvider.refreshAllWidgets(context)
+                            saveAndSync()
                             onNavigateBack()
                         },
                         colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
@@ -116,6 +128,9 @@ fun ImageWidgetEditorScreen(
             verticalArrangement = Arrangement.spacedBy(20.dp)
         ) {
             // Live Interactive Preview
+            val previewBitmap = remember(currentConfig) {
+                WidgetRenderer.renderImageWidget(context, currentConfig, targetWidth = 500, targetHeight = 500)
+            }
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -124,14 +139,31 @@ fun ImageWidgetEditorScreen(
                     .background(MaterialTheme.colorScheme.surfaceVariant),
                 contentAlignment = Alignment.Center
             ) {
-                val previewBitmap = remember(currentConfig) {
-                    WidgetRenderer.renderImageWidget(context, currentConfig, targetWidth = 500, targetHeight = 500)
-                }
                 Image(
                     bitmap = previewBitmap.asImageBitmap(),
                     contentDescription = "Widget Preview",
                     modifier = Modifier.size(200.dp)
                 )
+            }
+
+            // Quick Pin Action
+            Button(
+                onClick = {
+                    saveAndSync()
+                    WidgetPinManager.requestPinWidget(
+                        context = context,
+                        providerClass = ImageWidgetProvider::class.java,
+                        presetId = currentConfig.id,
+                        widgetType = "IMAGE",
+                        previewBitmap = previewBitmap
+                    )
+                },
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary)
+            ) {
+                Icon(Icons.Default.AddToHomeScreen, null)
+                Spacer(Modifier.width(8.dp))
+                Text("Save & Add to Home Screen")
             }
 
             // Widget Name
@@ -142,7 +174,7 @@ fun ImageWidgetEditorScreen(
                 modifier = Modifier.fillMaxWidth()
             )
 
-            // Image Selection
+            // Photos Selector
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
@@ -153,14 +185,14 @@ fun ImageWidgetEditorScreen(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text("Selected Photos (${imageUris.size})", fontWeight = FontWeight.Bold)
+                        Text("Photos (${imageUris.size})", fontWeight = FontWeight.Bold)
                         Button(
                             onClick = { photoPickerLauncher.launch("image/*") },
-                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary)
+                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
                         ) {
                             Icon(Icons.Default.AddPhotoAlternate, null)
                             Spacer(Modifier.width(4.dp))
-                            Text("Add Photos")
+                            Text("Pick Photos")
                         }
                     }
 
@@ -200,7 +232,7 @@ fun ImageWidgetEditorScreen(
 
             // Layout Picker
             Column {
-                Text("Collage / Layout Style", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                Text("Collage / Layout", fontWeight = FontWeight.Bold, fontSize = 16.sp)
                 Spacer(Modifier.height(8.dp))
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     items(CollageLayout.values()) { layout ->
@@ -213,9 +245,24 @@ fun ImageWidgetEditorScreen(
                 }
             }
 
+            // Filters
+            Column {
+                Text("Photo Filter & Aesthetic", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                Spacer(Modifier.height(8.dp))
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    items(ImageFilterType.values()) { filter ->
+                        FilterChip(
+                            selected = selectedFilter == filter,
+                            onClick = { selectedFilter = filter },
+                            label = { Text(filter.name.lowercase().replaceFirstChar { it.uppercase() }) }
+                        )
+                    }
+                }
+            }
+
             // Shape Picker
             Column {
-                Text("Widget Shape & Mask", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                Text("Shape & Mask", fontWeight = FontWeight.Bold, fontSize = 16.sp)
                 Spacer(Modifier.height(8.dp))
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     items(ShapeType.values()) { shape ->
@@ -228,7 +275,31 @@ fun ImageWidgetEditorScreen(
                 }
             }
 
-            // Sliders: Corner Radius, Border Width, Opacity
+            // Caption Overlay
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+            ) {
+                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text("Text Overlay & Captions", fontWeight = FontWeight.Bold)
+                    OutlinedTextField(
+                        value = captionText,
+                        onValueChange = { captionText = it },
+                        label = { Text("Caption Text (e.g. Memories, Quote)") },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("Show Date Badge Overlay")
+                        Switch(checked = showDateTag, onCheckedChange = { showDateTag = it })
+                    }
+                }
+            }
+
+            // Sliders: Radius, Border, Opacity
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 if (selectedShape == ShapeType.ROUNDED) {
                     Text("Corner Radius: ${cornerRadius.toInt()} dp")
@@ -290,24 +361,6 @@ fun ImageWidgetEditorScreen(
                             label = { Text(action.name.replace('_', ' ')) }
                         )
                     }
-                }
-
-                if (tapAction == TapActionType.OPEN_URL) {
-                    Spacer(Modifier.height(8.dp))
-                    OutlinedTextField(
-                        value = tapActionTarget,
-                        onValueChange = { tapActionTarget = it },
-                        label = { Text("Web URL (e.g. google.com)") },
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                } else if (tapAction == TapActionType.OPEN_APP) {
-                    Spacer(Modifier.height(8.dp))
-                    OutlinedTextField(
-                        value = tapActionTarget,
-                        onValueChange = { tapActionTarget = it },
-                        label = { Text("Package Name (e.g. com.spotify.music)") },
-                        modifier = Modifier.fillMaxWidth()
-                    )
                 }
             }
         }
