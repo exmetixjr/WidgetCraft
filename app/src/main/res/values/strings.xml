@@ -1,0 +1,9 @@
+<resources>
+    <string name="app_name">WidgetCraft</string>
+    <string name="widget_image_name">Custom Image Widget</string>
+    <string name="widget_clock_name">Custom Clock &amp; Battery Widget</string>
+    <string name="widget_icon_name">Custom App Icon (Micro-Widget)</string>
+    <string name="widget_image_desc">Display single or collage photos in custom shapes and frames.</string>
+    <string name="widget_clock_desc">Scalable digital/analog clock with battery indicator.</string>
+    <string name="widget_icon_desc">Border-free 1x1 app shortcut widget with no launcher badge.</string>
+</resources>
