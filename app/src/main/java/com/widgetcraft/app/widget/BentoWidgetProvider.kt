@@ -50,8 +50,7 @@ class BentoWidgetProvider : AppWidgetProvider() {
             val resolvedAlarm = if (alarmIntent.resolveActivity(context.packageManager) != null) {
                 alarmIntent
             } else {
-                Intent(Intent.ACTION_MAIN).apply {
-                    addCategory(Intent.CATEGORY_APP_ALARM)
+                Intent(AlarmClock.ACTION_SET_ALARM).apply {
                     flags = Intent.FLAG_ACTIVITY_NEW_TASK
                 }
             }

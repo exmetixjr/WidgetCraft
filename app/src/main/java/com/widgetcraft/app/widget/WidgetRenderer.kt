@@ -459,7 +459,7 @@ object WidgetRenderer {
     fun renderMusicWidget(
         context: Context,
         config: MusicWidgetConfig,
-        liveAlbumArt: Bitmap? = null,
+        albumArt: Bitmap? = null,
         targetWidth: Int = 850,
         targetHeight: Int = 420
     ): Bitmap {
@@ -500,7 +500,7 @@ object WidgetRenderer {
         val artSize = targetHeight * 0.76f
         val artRect = RectF(artPadding, artPadding, artPadding + artSize, artPadding + artSize)
 
-        val albumArtBitmap = liveAlbumArt ?: config.albumArtUri?.let { WidgetStorage(context).loadBitmap(it) }
+        val albumArtBitmap = albumArt ?: config.albumArtUri?.let { WidgetStorage(context).loadBitmap(it) }
 
         if (config.style == MusicStyle.VINYL_DISC) {
             drawVinylDisc(canvas, artRect, albumArtBitmap, accentColor)
@@ -759,7 +759,7 @@ object WidgetRenderer {
         }
         val dotPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = accentColor
-            style = Paint.Style.FILL
+            this.style = Paint.Style.FILL
         }
 
         canvas.drawText(timeStr, q.left + 24f, q.top + q.height() * 0.52f, timePaint)
