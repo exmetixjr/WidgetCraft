@@ -24,6 +24,7 @@ class WidgetPinReceiver : BroadcastReceiver() {
             val appWidgetManager = AppWidgetManager.getInstance(context)
             when (widgetType) {
                 "CLOCK" -> ClockWidgetProvider.updateWidget(context, appWidgetManager, appWidgetId, storage)
+                "NOTE" -> NoteWidgetProvider.updateWidget(context, appWidgetManager, appWidgetId, storage)
                 "ICON" -> IconWidgetProvider.updateWidget(context, appWidgetManager, appWidgetId, storage)
                 else -> ImageWidgetProvider.updateWidget(context, appWidgetManager, appWidgetId, storage)
             }

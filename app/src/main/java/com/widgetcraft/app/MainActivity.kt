@@ -19,7 +19,9 @@ sealed class Screen {
     object Home : Screen()
     data class EditImageWidget(val presetId: String?) : Screen()
     data class EditClockWidget(val presetId: String?) : Screen()
+    data class EditNoteWidget(val presetId: String?) : Screen()
     data class EditIconWidget(val presetId: String?) : Screen()
+    object AiStudio : Screen()
     data class ConfigurePicker(val appWidgetId: Int) : Screen()
 }
 
@@ -64,6 +66,7 @@ class MainActivity : ComponentActivity() {
                                 directEditPresetId != null -> {
                                     when (directWidgetType) {
                                         "CLOCK" -> Screen.EditClockWidget(directEditPresetId)
+                                        "NOTE" -> Screen.EditNoteWidget(directEditPresetId)
                                         "ICON" -> Screen.EditIconWidget(directEditPresetId)
                                         else -> Screen.EditImageWidget(directEditPresetId)
                                     }
@@ -82,7 +85,17 @@ class MainActivity : ComponentActivity() {
                                 storage = storage,
                                 onNavigateToImageEditor = { id -> currentScreen = Screen.EditImageWidget(id) },
                                 onNavigateToClockEditor = { id -> currentScreen = Screen.EditClockWidget(id) },
-                                onNavigateToIconChanger = { id -> currentScreen = Screen.EditIconWidget(id) }
+                                onNavigateToNoteEditor = { id -> currentScreen = Screen.EditNoteWidget(id) },
+                                onNavigateToIconChanger = { id -> currentScreen = Screen.EditIconWidget(id) },
+                                onNavigateToAiStudio = { currentScreen = Screen.AiStudio }
+                            )
+                        }
+                        is Screen.AiStudio -> {
+                            AiDesignStudioScreen(
+                                storage = storage,
+                                onNavigateBack = { currentScreen = Screen.Home },
+                                onEditClock = { id -> currentScreen = Screen.EditClockWidget(id) },
+                                onEditNote = { id -> currentScreen = Screen.EditNoteWidget(id) }
                             )
                         }
                         is Screen.ConfigurePicker -> {
@@ -99,6 +112,7 @@ class MainActivity : ComponentActivity() {
                                 },
                                 onCreateNewImage = { currentScreen = Screen.EditImageWidget(null) },
                                 onCreateNewClock = { currentScreen = Screen.EditClockWidget(null) },
+                                onCreateNewNote = { currentScreen = Screen.EditNoteWidget(null) },
                                 onCreateNewIcon = { currentScreen = Screen.EditIconWidget(null) },
                                 onCancel = { finish() }
                             )
@@ -118,6 +132,19 @@ class MainActivity : ComponentActivity() {
                         }
                         is Screen.EditClockWidget -> {
                             ClockWidgetEditorScreen(
+                                storage = storage,
+                                presetId = screen.presetId,
+                                onNavigateBack = {
+                                    if (configureAppWidgetId != AppWidgetManager.INVALID_APPWIDGET_ID) {
+                                        currentScreen = Screen.ConfigurePicker(configureAppWidgetId)
+                                    } else {
+                                        currentScreen = Screen.Home
+                                    }
+                                }
+                            )
+                        }
+                        is Screen.EditNoteWidget -> {
+                            NoteWidgetEditorScreen(
                                 storage = storage,
                                 presetId = screen.presetId,
                                 onNavigateBack = {

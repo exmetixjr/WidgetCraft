@@ -81,11 +81,39 @@ data class ClockWidgetConfig(
     var showDate: Boolean = true,
     var showBattery: Boolean = true,
     var showStorage: Boolean = false,
+    var showRam: Boolean = false,
+    var showWeather: Boolean = false,
+    var weatherTemp: String = "24°C",
+    var weatherCondition: String = "SUNNY",
     var textColorHex: String = "#FFFFFF",
     var accentColorHex: String = "#D0BCFF",
     var backgroundColorHex: String = "#1E1E1E",
     var cornerRadiusDp: Float = 24f,
     var tapPackageTarget: String = "com.google.android.deskclock"
+)
+
+enum class NoteStyle {
+    STICKY_YELLOW,
+    OBSIDIAN_DARK,
+    ROSE_QUARTZ,
+    MINT_GREEN,
+    LAVENDER_DREAM,
+    CYBER_TERMINAL
+}
+
+data class NoteWidgetConfig(
+    val id: String = java.util.UUID.randomUUID().toString(),
+    var name: String = "Daily Note",
+    var title: String = "Today's Focus",
+    var content: String = "• Finish high-priority task\n• Review pull requests\n• Take a walk outside",
+    var style: NoteStyle = NoteStyle.STICKY_YELLOW,
+    var fontSizeSp: Float = 14f,
+    var textColorHex: String = "#2D3748",
+    var backgroundColorHex: String = "#FEF08A",
+    var accentColorHex: String = "#EAB308",
+    var cornerRadiusDp: Float = 20f,
+    var isChecklist: Boolean = true,
+    var showDate: Boolean = true
 )
 
 enum class IconPresetStyle {
@@ -112,7 +140,15 @@ data class IconWidgetConfig(
 data class WidgetInstanceBinding(
     val appWidgetId: Int,
     val presetId: String,
-    val widgetType: String // "IMAGE", "CLOCK", "ICON"
+    val widgetType: String // "IMAGE", "CLOCK", "NOTE", "ICON"
+)
+
+data class ThemePalette(
+    val name: String,
+    val backgroundHex: String,
+    val cardHex: String,
+    val accentHex: String,
+    val textHex: String
 )
 
 data class InstalledAppInfo(

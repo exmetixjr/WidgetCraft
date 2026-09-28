@@ -26,64 +26,101 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.widgetcraft.app.data.ClockStyle
-import com.widgetcraft.app.data.ClockWidgetConfig
+import com.widgetcraft.app.data.NoteStyle
+import com.widgetcraft.app.data.NoteWidgetConfig
 import com.widgetcraft.app.data.WidgetStorage
-import com.widgetcraft.app.widget.ClockWidgetProvider
+import com.widgetcraft.app.widget.NoteWidgetProvider
 import com.widgetcraft.app.widget.WidgetPinManager
 import com.widgetcraft.app.widget.WidgetRenderer
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ClockWidgetEditorScreen(
+fun NoteWidgetEditorScreen(
     storage: WidgetStorage,
     presetId: String?,
     onNavigateBack: () -> Unit
 ) {
     val context = LocalContext.current
     val existingConfig = remember {
-        presetId?.let { storage.getClockConfig(it) } ?: ClockWidgetConfig()
+        presetId?.let { storage.getNoteConfig(it) } ?: NoteWidgetConfig()
     }
 
     var name by remember { mutableStateOf(existingConfig.name) }
+    var title by remember { mutableStateOf(existingConfig.title) }
+    var content by remember { mutableStateOf(existingConfig.content) }
     var selectedStyle by remember { mutableStateOf(existingConfig.style) }
-    var is24Hour by remember { mutableStateOf(existingConfig.is24Hour) }
+    var isChecklist by remember { mutableStateOf(existingConfig.isChecklist) }
     var showDate by remember { mutableStateOf(existingConfig.showDate) }
-    var showBattery by remember { mutableStateOf(existingConfig.showBattery) }
-    var showStorage by remember { mutableStateOf(existingConfig.showStorage) }
-    var showRam by remember { mutableStateOf(existingConfig.showRam) }
-    var showWeather by remember { mutableStateOf(existingConfig.showWeather) }
-    var textColor by remember { mutableStateOf(existingConfig.textColorHex) }
-    var accentColor by remember { mutableStateOf(existingConfig.accentColorHex) }
-    var backgroundColor by remember { mutableStateOf(existingConfig.backgroundColorHex) }
+    var fontSize by remember { mutableFloatStateOf(existingConfig.fontSizeSp) }
     var cornerRadius by remember { mutableFloatStateOf(existingConfig.cornerRadiusDp) }
+    var textColor by remember { mutableStateOf(existingConfig.textColorHex) }
+    var backgroundColor by remember { mutableStateOf(existingConfig.backgroundColorHex) }
+    var accentColor by remember { mutableStateOf(existingConfig.accentColorHex) }
 
-    val currentConfig = remember(name, selectedStyle, is24Hour, showDate, showBattery, showStorage, showRam, showWeather, textColor, accentColor, backgroundColor, cornerRadius) {
+    fun applyStyleDefaults(style: NoteStyle) {
+        selectedStyle = style
+        when (style) {
+            NoteStyle.STICKY_YELLOW -> {
+                backgroundColor = "#FEF08A"
+                textColor = "#2D3748"
+                accentColor = "#EAB308"
+            }
+            NoteStyle.OBSIDIAN_DARK -> {
+                backgroundColor = "#18181B"
+                textColor = "#F4F4F5"
+                accentColor = "#A78BFA"
+            }
+            NoteStyle.CYBER_TERMINAL -> {
+                backgroundColor = "#0D1117"
+                textColor = "#00FF66"
+                accentColor = "#00F0FF"
+            }
+            NoteStyle.MINT_GREEN -> {
+                backgroundColor = "#DCFCE7"
+                textColor = "#064E3B"
+                accentColor = "#10B981"
+            }
+            NoteStyle.ROSE_QUARTZ -> {
+                backgroundColor = "#FFE4E6"
+                textColor = "#881337"
+                accentColor = "#F43F5E"
+            }
+            NoteStyle.LAVENDER_DREAM -> {
+                backgroundColor = "#F3E8FF"
+                textColor = "#581C87"
+                accentColor = "#A855F7"
+            }
+        }
+    }
+
+    val currentConfig = remember(
+        name, title, content, selectedStyle, isChecklist, showDate, fontSize,
+        cornerRadius, textColor, backgroundColor, accentColor
+    ) {
         existingConfig.copy(
             name = name,
+            title = title,
+            content = content,
             style = selectedStyle,
-            is24Hour = is24Hour,
+            isChecklist = isChecklist,
             showDate = showDate,
-            showBattery = showBattery,
-            showStorage = showStorage,
-            showRam = showRam,
-            showWeather = showWeather,
+            fontSizeSp = fontSize,
+            cornerRadiusDp = cornerRadius,
             textColorHex = textColor,
-            accentColorHex = accentColor,
             backgroundColorHex = backgroundColor,
-            cornerRadiusDp = cornerRadius
+            accentColorHex = accentColor
         )
     }
 
     fun saveAndSync() {
-        storage.saveClockConfig(currentConfig)
-        ClockWidgetProvider.refreshAllWidgets(context)
+        storage.saveNoteConfig(currentConfig)
+        NoteWidgetProvider.refreshAllWidgets(context)
     }
 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(if (presetId == null) "New Clock Widget" else "Edit Clock Widget") },
+                title = { Text(if (presetId == null) "New Note Widget" else "Edit Note Widget") },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
                         Icon(Icons.Default.ArrowBack, contentDescription = "Back")
@@ -113,22 +150,24 @@ fun ClockWidgetEditorScreen(
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(20.dp)
         ) {
-            // Live Interactive Preview
+            // Live Preview
             val previewBitmap = remember(currentConfig) {
-                WidgetRenderer.renderClockWidget(context, currentConfig, targetWidth = 700, targetHeight = 350)
+                WidgetRenderer.renderNoteWidget(context, currentConfig, targetWidth = 600, targetHeight = 600)
             }
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(200.dp)
+                    .height(260.dp)
                     .clip(RoundedCornerShape(16.dp))
                     .background(MaterialTheme.colorScheme.surfaceVariant),
                 contentAlignment = Alignment.Center
             ) {
                 Image(
                     bitmap = previewBitmap.asImageBitmap(),
-                    contentDescription = "Clock Preview",
-                    modifier = Modifier.fillMaxWidth().height(180.dp).padding(12.dp)
+                    contentDescription = "Note Preview",
+                    modifier = Modifier
+                        .size(240.dp)
+                        .padding(8.dp)
                 )
             }
 
@@ -136,11 +175,9 @@ fun ClockWidgetEditorScreen(
             Button(
                 onClick = {
                     saveAndSync()
-                    WidgetPinManager.requestPinWidget(
+                    WidgetPinManager.pinNoteWidget(
                         context = context,
-                        providerClass = ClockWidgetProvider::class.java,
                         presetId = currentConfig.id,
-                        widgetType = "CLOCK",
                         previewBitmap = previewBitmap
                     )
                 },
@@ -152,30 +189,43 @@ fun ClockWidgetEditorScreen(
                 Text("Save & Add to Home Screen")
             }
 
-            // Widget Name
+            // Title Field
             OutlinedTextField(
-                value = name,
-                onValueChange = { name = it },
-                label = { Text("Widget Title") },
+                value = title,
+                onValueChange = { title = it },
+                label = { Text("Card Header / Title") },
                 modifier = Modifier.fillMaxWidth()
             )
 
-            // Style Picker
+            // Content Editor
+            OutlinedTextField(
+                value = content,
+                onValueChange = { content = it },
+                label = { Text("Note & Checklist Content") },
+                supportingText = {
+                    Text("Tip: Use '[x]' for checked, '[ ]' for unchecked, or '•' for bullet points.")
+                },
+                minLines = 4,
+                maxLines = 8,
+                modifier = Modifier.fillMaxWidth()
+            )
+
+            // Note Theme Style
             Column {
-                Text("Typography & Clock Style", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                Text("Theme & Style", fontWeight = FontWeight.Bold, fontSize = 16.sp)
                 Spacer(Modifier.height(8.dp))
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    items(ClockStyle.values()) { style ->
+                    items(NoteStyle.values()) { style ->
                         FilterChip(
                             selected = selectedStyle == style,
-                            onClick = { selectedStyle = style },
+                            onClick = { applyStyleDefaults(style) },
                             label = { Text(style.name.replace('_', ' ')) }
                         )
                     }
                 }
             }
 
-            // Indicators & Switches
+            // Checkbox / Date Controls
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
@@ -186,8 +236,8 @@ fun ClockWidgetEditorScreen(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text("24-Hour Time Format")
-                        Switch(checked = is24Hour, onCheckedChange = { is24Hour = it })
+                        Text("Checklist Mode (Interactive Checkboxes)")
+                        Switch(checked = isChecklist, onCheckedChange = { isChecklist = it })
                     }
 
                     Divider()
@@ -197,54 +247,20 @@ fun ClockWidgetEditorScreen(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text("Show Date Line")
+                        Text("Show Date Header")
                         Switch(checked = showDate, onCheckedChange = { showDate = it })
                     }
-
-                    Divider()
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text("Show Live Battery Gauge")
-                        Switch(checked = showBattery, onCheckedChange = { showBattery = it })
-                    }
-
-                    Divider()
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text("Show Available Storage Meter")
-                        Switch(checked = showStorage, onCheckedChange = { showStorage = it })
-                    }
-
-                    Divider()
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text("Show Real-time RAM Gauge")
-                        Switch(checked = showRam, onCheckedChange = { showRam = it })
-                    }
-
-                    Divider()
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text("Show Ambient Weather")
-                        Switch(checked = showWeather, onCheckedChange = { showWeather = it })
-                    }
                 }
+            }
+
+            // Typography Size Slider
+            Column {
+                Text("Font Size: ${fontSize.toInt()} sp")
+                Slider(
+                    value = fontSize,
+                    onValueChange = { fontSize = it },
+                    valueRange = 11f..24f
+                )
             }
 
             // Corner Radius Slider
@@ -253,7 +269,7 @@ fun ClockWidgetEditorScreen(
                 Slider(
                     value = cornerRadius,
                     onValueChange = { cornerRadius = it },
-                    valueRange = 0f..48f
+                    valueRange = 0f..40f
                 )
             }
 
@@ -261,10 +277,10 @@ fun ClockWidgetEditorScreen(
             Column {
                 Text("Accent Highlight Color", fontWeight = FontWeight.Bold)
                 Spacer(Modifier.height(8.dp))
-                val accents = listOf("#D0BCFF", "#06B6D4", "#F43F5E", "#10B981", "#EAB308", "#FF8A65", "#FFFFFF")
+                val accents = listOf("#EAB308", "#10B981", "#06B6D4", "#F43F5E", "#A855F7", "#F97316", "#FFFFFF")
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     accents.forEach { hex ->
-                        val parsed = try { Color(android.graphics.Color.parseColor(hex)) } catch (e: Exception) { Color.Cyan }
+                        val parsed = try { Color(android.graphics.Color.parseColor(hex)) } catch (e: Exception) { Color.Yellow }
                         Box(
                             modifier = Modifier
                                 .size(36.dp)

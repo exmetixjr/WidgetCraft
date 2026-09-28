@@ -86,6 +86,18 @@
                 android:resource="@xml/widget_icon_info" />
         </receiver>
 
+        <!-- Custom Sticky Note & Checklist Widget Receiver -->
+        <receiver
+            android:name=".widget.NoteWidgetProvider"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_note_info" />
+        </receiver>
+
     </application>
 
 </manifest>

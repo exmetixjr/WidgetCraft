@@ -5,8 +5,12 @@ import android.content.Intent
 import android.content.IntentFilter
 import android.graphics.*
 import android.os.BatteryManager
+import android.os.Build
 import android.os.Environment
 import android.os.StatFs
+import android.text.Layout
+import android.text.StaticLayout
+import android.text.TextPaint
 import com.widgetcraft.app.data.*
 import java.text.SimpleDateFormat
 import java.util.*
@@ -165,15 +169,6 @@ object WidgetRenderer {
                 if (config.showDate) {
                     canvas.drawText(dateString, 48f, timeY + targetHeight * 0.24f, datePaint)
                 }
-
-                var badgeRightX = targetWidth - 40f
-                if (config.showBattery) {
-                    drawBatteryBadge(context, canvas, badgeRightX - 160f, targetHeight * 0.18f, accentColor)
-                    badgeRightX -= 180f
-                }
-                if (config.showStorage) {
-                    drawStorageBadge(canvas, badgeRightX - 160f, targetHeight * 0.18f, accentColor)
-                }
             }
             ClockStyle.DIGITAL_SEVEN_SEGMENT -> {
                 val timePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -191,9 +186,6 @@ object WidgetRenderer {
                 if (config.showDate) {
                     canvas.drawText(dateString.uppercase(), 48f, targetHeight * 0.76f, datePaint)
                 }
-                if (config.showBattery) {
-                    drawBatteryBadge(context, canvas, targetWidth - 200f, targetHeight * 0.18f, accentColor)
-                }
             }
             ClockStyle.TERMINAL -> {
                 val termPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -209,9 +201,6 @@ object WidgetRenderer {
                 canvas.drawText("> $timeString", 40f, targetHeight * 0.45f, termPaint)
                 if (config.showDate) {
                     canvas.drawText("$dateString", 40f, targetHeight * 0.70f, datePaint)
-                }
-                if (config.showBattery) {
-                    drawBatteryBadge(context, canvas, targetWidth - 200f, targetHeight * 0.18f, accentColor)
                 }
             }
             ClockStyle.MINIMAL -> {
@@ -229,12 +218,230 @@ object WidgetRenderer {
                 if (config.showDate) {
                     canvas.drawText(dateString, 44f, targetHeight * 0.75f, datePaint)
                 }
-                if (config.showBattery) {
-                    drawBatteryBadge(context, canvas, targetWidth - 200f, targetHeight * 0.18f, accentColor)
-                }
             }
             ClockStyle.ANALOG_MINIMAL, ClockStyle.ANALOG_CLASSIC -> {
                 drawAnalogClock(canvas, targetWidth, targetHeight, now, textColor, accentColor, config.style == ClockStyle.ANALOG_CLASSIC)
+            }
+        }
+
+        drawStatusBadges(context, canvas, targetWidth, targetHeight, config, accentColor)
+
+        return output
+    }
+
+    // --- Note & Checklist Widget Rendering ---
+
+    fun renderNoteWidget(
+        context: Context,
+        config: NoteWidgetConfig,
+        targetWidth: Int = 800,
+        targetHeight: Int = 800
+    ): Bitmap {
+        val output = Bitmap.createBitmap(targetWidth, targetHeight, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(output)
+
+        val bgColor = parseColor(config.backgroundColorHex, Color.parseColor("#FEF08A"))
+        val textColor = parseColor(config.textColorHex, Color.parseColor("#2D3748"))
+        val accentColor = parseColor(config.accentColorHex, Color.parseColor("#EAB308"))
+
+        val cornerRadius = config.cornerRadiusDp * (targetWidth / 250f)
+        val cardRect = RectF(0f, 0f, targetWidth.toFloat(), targetHeight.toFloat())
+
+        val bgPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = bgColor
+            style = Paint.Style.FILL
+        }
+
+        canvas.drawRoundRect(cardRect, cornerRadius, cornerRadius, bgPaint)
+
+        // Accent details depending on style
+        when (config.style) {
+            NoteStyle.STICKY_YELLOW -> {
+                val tapePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                    color = Color.parseColor("#44D97706")
+                    style = Paint.Style.FILL
+                }
+                val tapeRect = RectF(targetWidth * 0.35f, 0f, targetWidth * 0.65f, targetHeight * 0.045f)
+                canvas.drawRoundRect(tapeRect, 6f, 6f, tapePaint)
+            }
+            NoteStyle.CYBER_TERMINAL -> {
+                val strokePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                    color = accentColor
+                    style = Paint.Style.STROKE
+                    strokeWidth = 6f
+                }
+                canvas.drawRoundRect(cardRect, cornerRadius, cornerRadius, strokePaint)
+
+                val headerPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                    color = Color.parseColor("#1E293B")
+                    style = Paint.Style.FILL
+                }
+                val headerRect = RectF(0f, 0f, targetWidth.toFloat(), targetHeight * 0.11f)
+                canvas.drawRoundRect(headerRect, cornerRadius, cornerRadius, headerPaint)
+
+                val dotPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.FILL }
+                dotPaint.color = Color.parseColor("#EF4444")
+                canvas.drawCircle(40f, targetHeight * 0.055f, 10f, dotPaint)
+                dotPaint.color = Color.parseColor("#F59E0B")
+                canvas.drawCircle(72f, targetHeight * 0.055f, 10f, dotPaint)
+                dotPaint.color = Color.parseColor("#10B981")
+                canvas.drawCircle(104f, targetHeight * 0.055f, 10f, dotPaint)
+            }
+            NoteStyle.OBSIDIAN_DARK -> {
+                val strokePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                    color = Color.parseColor("#33FFFFFF")
+                    style = Paint.Style.STROKE
+                    strokeWidth = 3f
+                }
+                canvas.drawRoundRect(cardRect, cornerRadius, cornerRadius, strokePaint)
+            }
+            else -> {}
+        }
+
+        val paddingLeft = targetWidth * 0.08f
+        val paddingRight = targetWidth * 0.08f
+        var currentY = if (config.style == NoteStyle.CYBER_TERMINAL) targetHeight * 0.17f else targetHeight * 0.12f
+
+        // Date Tag
+        if (config.showDate) {
+            val dateStr = SimpleDateFormat("EEE, MMM d", Locale.getDefault()).format(Date()).uppercase()
+            val datePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = accentColor
+                textSize = targetWidth * 0.038f
+                typeface = if (config.style == NoteStyle.CYBER_TERMINAL) Typeface.MONOSPACE else Typeface.DEFAULT_BOLD
+            }
+            canvas.drawText(dateStr, paddingLeft, currentY, datePaint)
+            currentY += targetWidth * 0.065f
+        }
+
+        // Title
+        if (config.title.isNotBlank()) {
+            val titlePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = textColor
+                textSize = targetWidth * 0.062f
+                typeface = when (config.style) {
+                    NoteStyle.CYBER_TERMINAL -> Typeface.MONOSPACE
+                    NoteStyle.OBSIDIAN_DARK -> Typeface.DEFAULT_BOLD
+                    else -> Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+                }
+            }
+            canvas.drawText(config.title, paddingLeft, currentY, titlePaint)
+            currentY += targetWidth * 0.03f
+
+            val divPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = accentColor
+                alpha = 90
+                strokeWidth = 3f
+            }
+            currentY += 12f
+            canvas.drawLine(paddingLeft, currentY, targetWidth - paddingRight, currentY, divPaint)
+            currentY += 28f
+        }
+
+        // Body Content
+        val maxContentWidth = (targetWidth - paddingLeft - paddingRight).toInt()
+        val textPaint = TextPaint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = textColor
+            textSize = config.fontSizeSp * (targetWidth / 350f)
+            typeface = if (config.style == NoteStyle.CYBER_TERMINAL) Typeface.MONOSPACE else Typeface.DEFAULT
+        }
+
+        val lines = config.content.lines()
+
+        for (line in lines) {
+            if (currentY > targetHeight - 30f) break
+
+            var lineText = line
+            var isChecked = false
+            var isItem = false
+
+            if (config.isChecklist) {
+                val trimmed = line.trim()
+                if (trimmed.startsWith("[x]", ignoreCase = true)) {
+                    isChecked = true
+                    isItem = true
+                    lineText = trimmed.substring(3).trim()
+                } else if (trimmed.startsWith("[ ]")) {
+                    isChecked = false
+                    isItem = true
+                    lineText = trimmed.substring(3).trim()
+                } else if (trimmed.startsWith("•") || trimmed.startsWith("-")) {
+                    isItem = true
+                    lineText = trimmed.substring(1).trim()
+                }
+            }
+
+            if (isItem) {
+                val boxSize = textPaint.textSize * 0.85f
+                val boxY = currentY - boxSize * 0.85f
+                val boxRect = RectF(paddingLeft, boxY, paddingLeft + boxSize, boxY + boxSize)
+
+                if (isChecked) {
+                    val checkedPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                        color = accentColor
+                        style = Paint.Style.FILL
+                    }
+                    canvas.drawRoundRect(boxRect, 6f, 6f, checkedPaint)
+                    val markPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                        color = Color.WHITE
+                        style = Paint.Style.STROKE
+                        strokeWidth = 4f
+                    }
+                    canvas.drawLine(boxRect.left + 5f, boxRect.centerY(), boxRect.centerX(), boxRect.bottom - 6f, markPaint)
+                    canvas.drawLine(boxRect.centerX(), boxRect.bottom - 6f, boxRect.right - 5f, boxRect.top + 6f, markPaint)
+
+                    textPaint.isStrikeThruText = true
+                    textPaint.alpha = 140
+                } else {
+                    val boxBorderPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                        color = accentColor
+                        style = Paint.Style.STROKE
+                        strokeWidth = 3f
+                    }
+                    canvas.drawRoundRect(boxRect, 6f, 6f, boxBorderPaint)
+                    textPaint.isStrikeThruText = false
+                    textPaint.alpha = 255
+                }
+
+                val itemTextX = paddingLeft + boxSize + 16f
+                val availableWidth = (targetWidth - paddingRight - itemTextX).toInt()
+                if (availableWidth > 50) {
+                    val layout = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                        StaticLayout.Builder.obtain(lineText, 0, lineText.length, textPaint, availableWidth)
+                            .setAlignment(Layout.Alignment.ALIGN_NORMAL)
+                            .setIncludePad(false)
+                            .build()
+                    } else {
+                        @Suppress("DEPRECATION")
+                        StaticLayout(lineText, textPaint, availableWidth, Layout.Alignment.ALIGN_NORMAL, 1.1f, 4f, false)
+                    }
+                    canvas.save()
+                    canvas.translate(itemTextX, currentY - textPaint.textSize * 0.85f)
+                    layout.draw(canvas)
+                    canvas.restore()
+                    currentY += layout.height.toFloat() + 16f
+                }
+                textPaint.isStrikeThruText = false
+                textPaint.alpha = 255
+            } else {
+                if (lineText.isNotBlank()) {
+                    val layout = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                        StaticLayout.Builder.obtain(lineText, 0, lineText.length, textPaint, maxContentWidth)
+                            .setAlignment(Layout.Alignment.ALIGN_NORMAL)
+                            .setIncludePad(false)
+                            .build()
+                    } else {
+                        @Suppress("DEPRECATION")
+                        StaticLayout(lineText, textPaint, maxContentWidth, Layout.Alignment.ALIGN_NORMAL, 1.1f, 4f, false)
+                    }
+                    canvas.save()
+                    canvas.translate(paddingLeft, currentY - textPaint.textSize * 0.85f)
+                    layout.draw(canvas)
+                    canvas.restore()
+                    currentY += layout.height.toFloat() + 14f
+                } else {
+                    currentY += textPaint.fontSpacing * 0.6f
+                }
             }
         }
 
@@ -449,36 +656,63 @@ object WidgetRenderer {
         canvas.drawText(text, w / 2f, h / 2f, paint)
     }
 
+    private fun drawStatusBadges(
+        context: Context,
+        canvas: Canvas,
+        targetWidth: Int,
+        targetHeight: Int,
+        config: ClockWidgetConfig,
+        accentColor: Int
+    ) {
+        var badgeRightX = targetWidth - 28f
+        val badgeY = 22f
+        val badgeWidth = 140f
+        val spacing = 12f
+
+        if (config.showBattery) {
+            drawBatteryBadge(context, canvas, badgeRightX - badgeWidth, badgeY, accentColor)
+            badgeRightX -= (badgeWidth + spacing)
+        }
+        if (config.showStorage) {
+            drawStorageBadge(canvas, badgeRightX - badgeWidth, badgeY, accentColor)
+            badgeRightX -= (badgeWidth + spacing)
+        }
+        if (config.showRam) {
+            drawRamBadge(context, canvas, badgeRightX - badgeWidth, badgeY, accentColor)
+            badgeRightX -= (badgeWidth + spacing)
+        }
+        if (config.showWeather) {
+            drawWeatherBadge(canvas, badgeRightX - badgeWidth, badgeY, accentColor, config.weatherTemp)
+            badgeRightX -= (badgeWidth + spacing)
+        }
+    }
+
     private fun drawBatteryBadge(context: Context, canvas: Canvas, x: Float, y: Float, accentColor: Int) {
-        val batteryPct = getBatteryPercentage(context)
+        val (batteryPct, _) = SystemStatsHelper.getBatteryStats(context)
         val badgePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = Color.parseColor("#33FFFFFF")
             style = Paint.Style.FILL
         }
         val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = Color.WHITE
-            textSize = 26f
+            textSize = 21f
             typeface = Typeface.DEFAULT_BOLD
         }
-        val rect = RectF(x, y, x + 150f, y + 50f)
-        canvas.drawRoundRect(rect, 25f, 25f, badgePaint)
+        val rect = RectF(x, y, x + 140f, y + 44f)
+        canvas.drawRoundRect(rect, 22f, 22f, badgePaint)
 
         val fillPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = accentColor
             style = Paint.Style.FILL
         }
-        val fillWidth = (150f * (batteryPct / 100f)).coerceIn(10f, 150f)
-        canvas.drawRoundRect(RectF(x, y, x + fillWidth, y + 50f), 25f, 25f, fillPaint)
+        val fillWidth = (140f * (batteryPct / 100f)).coerceIn(10f, 140f)
+        canvas.drawRoundRect(RectF(x, y, x + fillWidth, y + 44f), 22f, 22f, fillPaint)
 
-        canvas.drawText("⚡ $batteryPct%", x + 24f, y + 35f, textPaint)
+        canvas.drawText("⚡ $batteryPct%", x + 18f, y + 30f, textPaint)
     }
 
     private fun drawStorageBadge(canvas: Canvas, x: Float, y: Float, accentColor: Int) {
-        val stat = StatFs(Environment.getDataDirectory().path)
-        val freeBytes = stat.availableBlocksLong * stat.blockSizeLong
-        val totalBytes = stat.blockCountLong * stat.blockSizeLong
-        val usedPct = if (totalBytes > 0) (((totalBytes - freeBytes).toFloat() / totalBytes.toFloat()) * 100).toInt() else 0
-        val freeGb = (freeBytes / (1024L * 1024L * 1024L)).toInt()
+        val (freeGb, usedPct) = SystemStatsHelper.getStorageStats()
 
         val badgePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = Color.parseColor("#33FFFFFF")
@@ -486,27 +720,59 @@ object WidgetRenderer {
         }
         val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = Color.WHITE
-            textSize = 24f
+            textSize = 21f
             typeface = Typeface.DEFAULT_BOLD
         }
-        val rect = RectF(x, y, x + 150f, y + 50f)
-        canvas.drawRoundRect(rect, 25f, 25f, badgePaint)
+        val rect = RectF(x, y, x + 140f, y + 44f)
+        canvas.drawRoundRect(rect, 22f, 22f, badgePaint)
 
         val fillPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = accentColor
             style = Paint.Style.FILL
         }
-        val fillWidth = (150f * (usedPct / 100f)).coerceIn(10f, 150f)
-        canvas.drawRoundRect(RectF(x, y, x + fillWidth, y + 50f), 25f, 25f, fillPaint)
+        val fillWidth = (140f * (usedPct / 100f)).coerceIn(10f, 140f)
+        canvas.drawRoundRect(RectF(x, y, x + fillWidth, y + 44f), 22f, 22f, fillPaint)
 
-        canvas.drawText("💾 ${freeGb}G", x + 22f, y + 35f, textPaint)
+        canvas.drawText("💾 ${freeGb}G", x + 18f, y + 30f, textPaint)
     }
 
-    private fun getBatteryPercentage(context: Context): Int {
-        val intent = context.registerReceiver(null, IntentFilter(Intent.ACTION_BATTERY_CHANGED))
-        val level = intent?.getIntExtra(BatteryManager.EXTRA_LEVEL, -1) ?: -1
-        val scale = intent?.getIntExtra(BatteryManager.EXTRA_SCALE, -1) ?: -1
-        return if (level >= 0 && scale > 0) ((level.toFloat() / scale.toFloat()) * 100).toInt() else 100
+    private fun drawRamBadge(context: Context, canvas: Canvas, x: Float, y: Float, accentColor: Int) {
+        val (_, _, pct) = SystemStatsHelper.getRamStats(context)
+        val badgePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.parseColor("#33FFFFFF")
+            style = Paint.Style.FILL
+        }
+        val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.WHITE
+            textSize = 21f
+            typeface = Typeface.DEFAULT_BOLD
+        }
+        val rect = RectF(x, y, x + 140f, y + 44f)
+        canvas.drawRoundRect(rect, 22f, 22f, badgePaint)
+
+        val fillPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = accentColor
+            style = Paint.Style.FILL
+        }
+        val fillWidth = (140f * (pct / 100f)).coerceIn(10f, 140f)
+        canvas.drawRoundRect(RectF(x, y, x + fillWidth, y + 44f), 22f, 22f, fillPaint)
+
+        canvas.drawText("RAM $pct%", x + 14f, y + 30f, textPaint)
+    }
+
+    private fun drawWeatherBadge(canvas: Canvas, x: Float, y: Float, accentColor: Int, temp: String) {
+        val badgePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.parseColor("#33FFFFFF")
+            style = Paint.Style.FILL
+        }
+        val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.WHITE
+            textSize = 21f
+            typeface = Typeface.DEFAULT_BOLD
+        }
+        val rect = RectF(x, y, x + 140f, y + 44f)
+        canvas.drawRoundRect(rect, 22f, 22f, badgePaint)
+        canvas.drawText("☀️ $temp", x + 16f, y + 30f, textPaint)
     }
 
     private fun drawAnalogClock(

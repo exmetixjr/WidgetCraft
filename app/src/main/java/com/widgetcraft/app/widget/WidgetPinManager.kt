@@ -47,12 +47,14 @@ object WidgetPinManager {
             if (previewBitmap != null) {
                 val layoutRes = when (widgetType) {
                     "CLOCK" -> R.layout.widget_clock
+                    "NOTE" -> R.layout.widget_note
                     "ICON" -> R.layout.widget_icon
                     else -> R.layout.widget_image
                 }
                 val previewViews = RemoteViews(context.packageName, layoutRes)
                 val imgViewId = when (widgetType) {
                     "CLOCK" -> R.id.widget_clock_image_view
+                    "NOTE" -> R.id.widget_note_image_view
                     "ICON" -> R.id.widget_icon_image_view
                     else -> R.id.widget_image_view
                 }
@@ -80,6 +82,7 @@ object WidgetPinManager {
         val appWidgetManager = AppWidgetManager.getInstance(activity)
         when (widgetType) {
             "CLOCK" -> ClockWidgetProvider.updateWidget(activity, appWidgetManager, appWidgetId, storage)
+            "NOTE" -> NoteWidgetProvider.updateWidget(activity, appWidgetManager, appWidgetId, storage)
             "ICON" -> IconWidgetProvider.updateWidget(activity, appWidgetManager, appWidgetId, storage)
             else -> ImageWidgetProvider.updateWidget(activity, appWidgetManager, appWidgetId, storage)
         }

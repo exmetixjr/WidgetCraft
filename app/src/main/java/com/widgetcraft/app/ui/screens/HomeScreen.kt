@@ -1,6 +1,9 @@
 package com.widgetcraft.app.ui.screens
 
+import android.content.ClipData
+import android.content.ClipboardManager
 import android.content.Context
+import android.widget.Toast
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -28,19 +31,25 @@ fun HomeScreen(
     storage: WidgetStorage,
     onNavigateToImageEditor: (String?) -> Unit,
     onNavigateToClockEditor: (String?) -> Unit,
-    onNavigateToIconChanger: (String?) -> Unit
+    onNavigateToNoteEditor: (String?) -> Unit,
+    onNavigateToIconChanger: (String?) -> Unit,
+    onNavigateToAiStudio: () -> Unit
 ) {
     var selectedTab by remember { mutableIntStateOf(0) }
-    val tabs = listOf("Photo Widgets", "Clock Widgets", "Custom App Icons")
+    val tabs = listOf("Photo Widgets", "Clock Widgets", "Notes & Tasks", "Custom Icons")
     val context = LocalContext.current
 
     var imageWidgets by remember { mutableStateOf(storage.getAllImageConfigs()) }
     var clockWidgets by remember { mutableStateOf(storage.getAllClockConfigs()) }
+    var noteWidgets by remember { mutableStateOf(storage.getAllNoteConfigs()) }
     var iconWidgets by remember { mutableStateOf(storage.getAllIconConfigs()) }
+
+    var showBackupDialog by remember { mutableStateOf(false) }
 
     fun refreshData() {
         imageWidgets = storage.getAllImageConfigs()
         clockWidgets = storage.getAllClockConfigs()
+        noteWidgets = storage.getAllNoteConfigs()
         iconWidgets = storage.getAllIconConfigs()
     }
 
@@ -59,6 +68,21 @@ fun HomeScreen(
                         Text("WidgetCraft", fontWeight = FontWeight.Bold)
                     }
                 },
+                actions = {
+                    IconButton(onClick = onNavigateToAiStudio) {
+                        Icon(
+                            Icons.Default.AutoAwesome,
+                            contentDescription = "AI Design Studio",
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                    IconButton(onClick = { showBackupDialog = true }) {
+                        Icon(
+                            Icons.Default.SettingsBackupRestore,
+                            contentDescription = "Backup & Restore"
+                        )
+                    }
+                },
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.surface
                 )
@@ -70,7 +94,8 @@ fun HomeScreen(
                     when (selectedTab) {
                         0 -> onNavigateToImageEditor(null)
                         1 -> onNavigateToClockEditor(null)
-                        2 -> onNavigateToIconChanger(null)
+                        2 -> onNavigateToNoteEditor(null)
+                        3 -> onNavigateToIconChanger(null)
                     }
                 },
                 icon = { Icon(Icons.Default.Add, null) },
@@ -79,6 +104,7 @@ fun HomeScreen(
                         when (selectedTab) {
                             0 -> "New Photo Widget"
                             1 -> "New Clock Widget"
+                            2 -> "New Note Widget"
                             else -> "New Custom Icon"
                         }
                     )
@@ -92,10 +118,11 @@ fun HomeScreen(
                 .fillMaxSize()
                 .padding(padding)
         ) {
-            TabRow(
+            ScrollableTabRow(
                 selectedTabIndex = selectedTab,
                 containerColor = MaterialTheme.colorScheme.surface,
-                contentColor = MaterialTheme.colorScheme.primary
+                contentColor = MaterialTheme.colorScheme.primary,
+                edgePadding = 12.dp
             ) {
                 tabs.forEachIndexed { index, title ->
                     Tab(
@@ -129,7 +156,18 @@ fun HomeScreen(
                         refreshData()
                     }
                 )
-                2 -> IconWidgetsList(
+                2 -> NoteWidgetsList(
+                    context = context,
+                    storage = storage,
+                    widgets = noteWidgets,
+                    onEdit = onNavigateToNoteEditor,
+                    onDelete = { id ->
+                        storage.deleteNoteConfig(id)
+                        NoteWidgetProvider.refreshAllWidgets(context)
+                        refreshData()
+                    }
+                )
+                3 -> IconWidgetsList(
                     context = context,
                     storage = storage,
                     widgets = iconWidgets,
@@ -142,6 +180,17 @@ fun HomeScreen(
                 )
             }
         }
+    }
+
+    if (showBackupDialog) {
+        BackupRestoreDialog(
+            storage = storage,
+            onDismiss = { showBackupDialog = false },
+            onRestored = {
+                refreshData()
+                showBackupDialog = false
+            }
+        )
     }
 }
 
@@ -220,7 +269,6 @@ fun PhotoWidgetsList(
 
                         Spacer(Modifier.height(12.dp))
 
-                        // One-tap Add to Home Screen button
                         Button(
                             onClick = {
                                 WidgetPinManager.requestPinWidget(
@@ -256,7 +304,7 @@ fun ClockWidgetsList(
     if (widgets.isEmpty()) {
         EmptyStateView(
             title = "No Clock Widgets Created",
-            subtitle = "Tap '+ New Clock Widget' to design minimalist, editorial, terminal, or analog clocks with battery meters."
+            subtitle = "Tap '+ New Clock Widget' to customize digital, editorial, terminal, or analog clocks."
         )
     } else {
         LazyColumn(
@@ -314,7 +362,7 @@ fun ClockWidgetsList(
                             Image(
                                 bitmap = bitmap.asImageBitmap(),
                                 contentDescription = null,
-                                modifier = Modifier.fillMaxWidth().height(120.dp).padding(8.dp)
+                                modifier = Modifier.fillMaxWidth().height(120.dp).padding(6.dp)
                             )
                         }
 
@@ -327,6 +375,103 @@ fun ClockWidgetsList(
                                     providerClass = ClockWidgetProvider::class.java,
                                     presetId = widget.id,
                                     widgetType = "CLOCK",
+                                    previewBitmap = bitmap
+                                )
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+                        ) {
+                            Icon(Icons.Default.AddToHomeScreen, null)
+                            Spacer(Modifier.width(8.dp))
+                            Text("Add to Home Screen")
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun NoteWidgetsList(
+    context: Context,
+    storage: WidgetStorage,
+    widgets: List<NoteWidgetConfig>,
+    onEdit: (String) -> Unit,
+    onDelete: (String) -> Unit
+) {
+    if (widgets.isEmpty()) {
+        EmptyStateView(
+            title = "No Sticky Notes or Checklists Created",
+            subtitle = "Tap '+ New Note Widget' to create customizable sticky notes, to-dos, and daily quotes."
+        )
+    } else {
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(16.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            items(widgets, key = { it.id }) { widget ->
+                val boundCount = remember(widget) { storage.getWidgetIdsForPreset(widget.id).size }
+                val bitmap = remember(widget) {
+                    WidgetRenderer.renderNoteWidget(context, widget, targetWidth = 500, targetHeight = 500)
+                }
+
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Column {
+                                Text(widget.name, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                                if (boundCount > 0) {
+                                    Text(
+                                        "Active on Home Screen ($boundCount)",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.primary
+                                    )
+                                }
+                            }
+                            Row {
+                                IconButton(onClick = { onEdit(widget.id) }) {
+                                    Icon(Icons.Default.Edit, contentDescription = "Edit")
+                                }
+                                IconButton(onClick = { onDelete(widget.id) }) {
+                                    Icon(Icons.Default.Delete, contentDescription = "Delete", tint = MaterialTheme.colorScheme.error)
+                                }
+                            }
+                        }
+
+                        Spacer(Modifier.height(8.dp))
+
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(160.dp)
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(MaterialTheme.colorScheme.surfaceVariant),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Image(
+                                bitmap = bitmap.asImageBitmap(),
+                                contentDescription = null,
+                                modifier = Modifier.size(150.dp).padding(6.dp)
+                            )
+                        }
+
+                        Spacer(Modifier.height(12.dp))
+
+                        Button(
+                            onClick = {
+                                WidgetPinManager.pinNoteWidget(
+                                    context = context,
+                                    presetId = widget.id,
                                     previewBitmap = bitmap
                                 )
                             },
@@ -441,6 +586,81 @@ fun IconWidgetsList(
             }
         }
     }
+}
+
+@Composable
+fun BackupRestoreDialog(
+    storage: WidgetStorage,
+    onDismiss: () -> Unit,
+    onRestored: () -> Unit
+) {
+    val context = LocalContext.current
+    var importText by remember { mutableStateOf("") }
+    var exportSuccess by remember { mutableStateOf(false) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Backup & Restore Presets") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text(
+                    "Export all your custom widgets and app icons to a JSON backup, or restore from a previously exported backup.",
+                    fontSize = 13.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+
+                Button(
+                    onClick = {
+                        val json = storage.exportBackupJson()
+                        val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                        clipboard.setPrimaryClip(ClipData.newPlainText("WidgetCraft Backup", json))
+                        exportSuccess = true
+                        Toast.makeText(context, "Backup copied to clipboard!", Toast.LENGTH_SHORT).show()
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Icon(Icons.Default.ContentCopy, null)
+                    Spacer(Modifier.width(8.dp))
+                    Text(if (exportSuccess) "Copied to Clipboard!" else "Export & Copy JSON")
+                }
+
+                Divider()
+
+                OutlinedTextField(
+                    value = importText,
+                    onValueChange = { importText = it },
+                    label = { Text("Paste JSON to Restore") },
+                    placeholder = { Text("Paste exported JSON configuration here") },
+                    minLines = 3,
+                    maxLines = 6,
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    if (importText.isNotBlank()) {
+                        val success = storage.importBackupJson(importText.trim())
+                        if (success) {
+                            Toast.makeText(context, "Presets successfully restored!", Toast.LENGTH_SHORT).show()
+                            onRestored()
+                        } else {
+                            Toast.makeText(context, "Invalid backup JSON format", Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                },
+                enabled = importText.isNotBlank()
+            ) {
+                Text("Restore Presets")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Close")
+            }
+        }
+    )
 }
 
 @Composable

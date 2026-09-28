@@ -18,6 +18,35 @@ class WidgetStorage(private val context: Context) {
         File(context.filesDir, "widget_images").apply { if (!exists()) mkdirs() }
     }
 
+    init {
+        ensureStarterPresets()
+    }
+
+    private fun ensureStarterPresets() {
+        val hasInitialized = prefs.getBoolean("has_initialized_starter_presets_v2", false)
+        if (!hasInitialized) {
+            val clockList = getAllClockConfigs().toMutableList()
+            if (clockList.isEmpty()) {
+                clockList.addAll(PresetCatalog.getDefaultClockPresets())
+                prefs.edit().putString("clock_widgets_list", gson.toJson(clockList)).apply()
+            }
+
+            val imgList = getAllImageConfigs().toMutableList()
+            if (imgList.isEmpty()) {
+                imgList.addAll(PresetCatalog.getDefaultImagePresets())
+                prefs.edit().putString("image_widgets_list", gson.toJson(imgList)).apply()
+            }
+
+            val noteList = getAllNoteConfigs().toMutableList()
+            if (noteList.isEmpty()) {
+                noteList.addAll(PresetCatalog.getDefaultNotePresets())
+                prefs.edit().putString("note_widgets_list", gson.toJson(noteList)).apply()
+            }
+
+            prefs.edit().putBoolean("has_initialized_starter_presets_v2", true).apply()
+        }
+    }
+
     // --- Instance to Preset Bindings ---
 
     fun getAllBindings(): List<WidgetInstanceBinding> {
@@ -133,6 +162,48 @@ class WidgetStorage(private val context: Context) {
         prefs.edit().putString("clock_widgets_list", gson.toJson(list)).apply()
     }
 
+    // --- Note & Quote Widgets Presets ---
+
+    fun getAllNoteConfigs(): List<NoteWidgetConfig> {
+        val json = prefs.getString("note_widgets_list", null) ?: return emptyList()
+        val type = object : TypeToken<List<NoteWidgetConfig>>() {}.type
+        return try {
+            gson.fromJson(json, type) ?: emptyList()
+        } catch (e: Exception) {
+            emptyList()
+        }
+    }
+
+    fun getNoteConfig(id: String): NoteWidgetConfig? {
+        return getAllNoteConfigs().find { it.id == id }
+    }
+
+    fun getNoteConfigForWidgetId(appWidgetId: Int): NoteWidgetConfig? {
+        val binding = getBindingForWidgetId(appWidgetId)
+        if (binding != null) {
+            val config = getNoteConfig(binding.presetId)
+            if (config != null) return config
+        }
+        return getAllNoteConfigs().firstOrNull() ?: NoteWidgetConfig()
+    }
+
+    fun saveNoteConfig(config: NoteWidgetConfig) {
+        val list = getAllNoteConfigs().toMutableList()
+        val index = list.indexOfFirst { it.id == config.id }
+        if (index >= 0) {
+            list[index] = config
+        } else {
+            list.add(config)
+        }
+        prefs.edit().putString("note_widgets_list", gson.toJson(list)).apply()
+    }
+
+    fun deleteNoteConfig(id: String) {
+        val list = getAllNoteConfigs().toMutableList()
+        list.removeAll { it.id == id }
+        prefs.edit().putString("note_widgets_list", gson.toJson(list)).apply()
+    }
+
     // --- Icon Widgets Presets ---
 
     fun getAllIconConfigs(): List<IconWidgetConfig> {
@@ -173,6 +244,46 @@ class WidgetStorage(private val context: Context) {
         val list = getAllIconConfigs().toMutableList()
         list.removeAll { it.id == id }
         prefs.edit().putString("icon_widgets_list", gson.toJson(list)).apply()
+    }
+
+    // --- Backup & Restore Engine ---
+
+    data class FullBackupPayload(
+        val images: List<ImageWidgetConfig>,
+        val clocks: List<ClockWidgetConfig>,
+        val notes: List<NoteWidgetConfig>,
+        val icons: List<IconWidgetConfig>,
+        val bindings: List<WidgetInstanceBinding>
+    )
+
+    fun exportBackupJson(): String {
+        val payload = FullBackupPayload(
+            images = getAllImageConfigs(),
+            clocks = getAllClockConfigs(),
+            notes = getAllNoteConfigs(),
+            icons = getAllIconConfigs(),
+            bindings = getAllBindings()
+        )
+        return gson.toJson(payload)
+    }
+
+    fun importBackupJson(json: String): Boolean {
+        return try {
+            val payload = gson.fromJson(json, FullBackupPayload::class.java)
+            if (payload != null) {
+                prefs.edit()
+                    .putString("image_widgets_list", gson.toJson(payload.images))
+                    .putString("clock_widgets_list", gson.toJson(payload.clocks))
+                    .putString("note_widgets_list", gson.toJson(payload.notes))
+                    .putString("icon_widgets_list", gson.toJson(payload.icons))
+                    .putString("widget_instance_bindings", gson.toJson(payload.bindings))
+                    .apply()
+                true
+            } else false
+        } catch (e: Exception) {
+            e.printStackTrace()
+            false
+        }
     }
 
     // --- Image Storage ---

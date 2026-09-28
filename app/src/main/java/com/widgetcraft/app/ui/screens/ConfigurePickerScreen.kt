@@ -31,15 +31,17 @@ fun ConfigurePickerScreen(
     onSelectPreset: (presetId: String, widgetType: String) -> Unit,
     onCreateNewImage: () -> Unit,
     onCreateNewClock: () -> Unit,
+    onCreateNewNote: () -> Unit,
     onCreateNewIcon: () -> Unit,
     onCancel: () -> Unit
 ) {
     val context = LocalContext.current
     var selectedTab by remember { mutableIntStateOf(0) }
-    val tabs = listOf("Photo Presets", "Clock Presets", "Icon Presets")
+    val tabs = listOf("Photos", "Clocks", "Notes", "Icons")
 
     val imagePresets = remember { storage.getAllImageConfigs() }
     val clockPresets = remember { storage.getAllClockConfigs() }
+    val notePresets = remember { storage.getAllNoteConfigs() }
     val iconPresets = remember { storage.getAllIconConfigs() }
 
     Scaffold(
@@ -107,7 +109,7 @@ fun ConfigurePickerScreen(
                                             bitmap = bmp.asImageBitmap(),
                                             contentDescription = null,
                                             modifier = Modifier
-                                                .size(60.dp)
+                                                .size(54.dp)
                                                 .clip(RoundedCornerShape(8.dp))
                                         )
                                         Spacer(Modifier.width(16.dp))
@@ -177,6 +179,57 @@ fun ConfigurePickerScreen(
                     }
                 }
                 2 -> {
+                    if (notePresets.isEmpty()) {
+                        EmptyPresetView(
+                            message = "No note presets found. Create one now!",
+                            actionText = "Create Note Widget",
+                            onAction = onCreateNewNote
+                        )
+                    } else {
+                        LazyColumn(
+                            modifier = Modifier.fillMaxSize(),
+                            contentPadding = PaddingValues(16.dp),
+                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            items(notePresets) { preset ->
+                                Card(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable { onSelectPreset(preset.id, "NOTE") },
+                                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+                                ) {
+                                    Row(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(14.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        val bmp = remember(preset) {
+                                            WidgetRenderer.renderNoteWidget(context, preset, 160, 160)
+                                        }
+                                        Image(
+                                            bitmap = bmp.asImageBitmap(),
+                                            contentDescription = null,
+                                            modifier = Modifier
+                                                .size(54.dp)
+                                                .clip(RoundedCornerShape(8.dp))
+                                        )
+                                        Spacer(Modifier.width(16.dp))
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Text(preset.name, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                                            Text(
+                                                "Tap to apply this design",
+                                                style = MaterialTheme.typography.labelSmall,
+                                                color = MaterialTheme.colorScheme.primary
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                3 -> {
                     if (iconPresets.isEmpty()) {
                         EmptyPresetView(
                             message = "No custom icon presets found. Create one now!",
