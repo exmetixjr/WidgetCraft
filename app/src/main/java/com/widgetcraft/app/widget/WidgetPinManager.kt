@@ -70,6 +70,46 @@ object WidgetPinManager {
         }
     }
 
+    fun pinNoteWidget(context: Context, presetId: String, previewBitmap: Bitmap? = null): Boolean {
+        return requestPinWidget(
+            context = context,
+            providerClass = NoteWidgetProvider::class.java,
+            presetId = presetId,
+            widgetType = "NOTE",
+            previewBitmap = previewBitmap
+        )
+    }
+
+    fun pinClockWidget(context: Context, presetId: String, previewBitmap: Bitmap? = null): Boolean {
+        return requestPinWidget(
+            context = context,
+            providerClass = ClockWidgetProvider::class.java,
+            presetId = presetId,
+            widgetType = "CLOCK",
+            previewBitmap = previewBitmap
+        )
+    }
+
+    fun pinImageWidget(context: Context, presetId: String, previewBitmap: Bitmap? = null): Boolean {
+        return requestPinWidget(
+            context = context,
+            providerClass = ImageWidgetProvider::class.java,
+            presetId = presetId,
+            widgetType = "IMAGE",
+            previewBitmap = previewBitmap
+        )
+    }
+
+    fun pinIconWidget(context: Context, presetId: String, previewBitmap: Bitmap? = null): Boolean {
+        return requestPinWidget(
+            context = context,
+            providerClass = IconWidgetProvider::class.java,
+            presetId = presetId,
+            widgetType = "ICON",
+            previewBitmap = previewBitmap
+        )
+    }
+
     fun completeConfiguration(
         activity: Activity,
         appWidgetId: Int,
