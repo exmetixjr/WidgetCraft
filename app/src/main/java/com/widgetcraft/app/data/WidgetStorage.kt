@@ -43,6 +43,18 @@ class WidgetStorage(private val context: Context) {
                 prefs.edit().putString("note_widgets_list", gson.toJson(noteList)).apply()
             }
 
+            val musicList = getAllMusicConfigs().toMutableList()
+            if (musicList.isEmpty()) {
+                musicList.addAll(PresetCatalog.getDefaultMusicPresets())
+                prefs.edit().putString("music_widgets_list", gson.toJson(musicList)).apply()
+            }
+
+            val bentoList = getAllBentoConfigs().toMutableList()
+            if (bentoList.isEmpty()) {
+                bentoList.addAll(PresetCatalog.getDefaultBentoPresets())
+                prefs.edit().putString("bento_widgets_list", gson.toJson(bentoList)).apply()
+            }
+
             prefs.edit().putBoolean("has_initialized_starter_presets_v2", true).apply()
         }
     }
@@ -246,6 +258,90 @@ class WidgetStorage(private val context: Context) {
         prefs.edit().putString("icon_widgets_list", gson.toJson(list)).apply()
     }
 
+    // --- Music Widgets Presets ---
+
+    fun getAllMusicConfigs(): List<MusicWidgetConfig> {
+        val json = prefs.getString("music_widgets_list", null) ?: return emptyList()
+        val type = object : TypeToken<List<MusicWidgetConfig>>() {}.type
+        return try {
+            gson.fromJson(json, type) ?: emptyList()
+        } catch (e: Exception) {
+            emptyList()
+        }
+    }
+
+    fun getMusicConfig(id: String): MusicWidgetConfig? {
+        return getAllMusicConfigs().find { it.id == id }
+    }
+
+    fun getMusicConfigForWidgetId(appWidgetId: Int): MusicWidgetConfig? {
+        val binding = getBindingForWidgetId(appWidgetId)
+        if (binding != null) {
+            val config = getMusicConfig(binding.presetId)
+            if (config != null) return config
+        }
+        return getAllMusicConfigs().firstOrNull() ?: MusicWidgetConfig()
+    }
+
+    fun saveMusicConfig(config: MusicWidgetConfig) {
+        val list = getAllMusicConfigs().toMutableList()
+        val index = list.indexOfFirst { it.id == config.id }
+        if (index >= 0) {
+            list[index] = config
+        } else {
+            list.add(config)
+        }
+        prefs.edit().putString("music_widgets_list", gson.toJson(list)).apply()
+    }
+
+    fun deleteMusicConfig(id: String) {
+        val list = getAllMusicConfigs().toMutableList()
+        list.removeAll { it.id == id }
+        prefs.edit().putString("music_widgets_list", gson.toJson(list)).apply()
+    }
+
+    // --- Bento Widgets Presets ---
+
+    fun getAllBentoConfigs(): List<BentoWidgetConfig> {
+        val json = prefs.getString("bento_widgets_list", null) ?: return emptyList()
+        val type = object : TypeToken<List<BentoWidgetConfig>>() {}.type
+        return try {
+            gson.fromJson(json, type) ?: emptyList()
+        } catch (e: Exception) {
+            emptyList()
+        }
+    }
+
+    fun getBentoConfig(id: String): BentoWidgetConfig? {
+        return getAllBentoConfigs().find { it.id == id }
+    }
+
+    fun getBentoConfigForWidgetId(appWidgetId: Int): BentoWidgetConfig? {
+        val binding = getBindingForWidgetId(appWidgetId)
+        if (binding != null) {
+            val config = getBentoConfig(binding.presetId)
+            if (config != null) return config
+        }
+        return getAllBentoConfigs().firstOrNull() ?: BentoWidgetConfig()
+    }
+
+    fun saveBentoConfig(config: BentoWidgetConfig) {
+        val list = getAllBentoConfigs().toMutableList()
+        val index = list.indexOfFirst { it.id == config.id }
+        if (index >= 0) {
+            list[index] = config
+        } else {
+            list.add(config)
+        }
+        prefs.edit().putString("bento_widgets_list", gson.toJson(list)).apply()
+    }
+
+    fun deleteBentoConfig(id: String) {
+        val list = getAllBentoConfigs().toMutableList()
+        list.removeAll { it.id == id }
+        prefs.edit().putString("bento_widgets_list", gson.toJson(list)).apply()
+    }
+
     // --- Backup & Restore Engine ---
 
     data class FullBackupPayload(
@@ -253,6 +349,8 @@ class WidgetStorage(private val context: Context) {
         val clocks: List<ClockWidgetConfig>,
         val notes: List<NoteWidgetConfig>,
         val icons: List<IconWidgetConfig>,
+        val music: List<MusicWidgetConfig> = emptyList(),
+        val bento: List<BentoWidgetConfig> = emptyList(),
         val bindings: List<WidgetInstanceBinding>
     )
 
@@ -262,6 +360,8 @@ class WidgetStorage(private val context: Context) {
             clocks = getAllClockConfigs(),
             notes = getAllNoteConfigs(),
             icons = getAllIconConfigs(),
+            music = getAllMusicConfigs(),
+            bento = getAllBentoConfigs(),
             bindings = getAllBindings()
         )
         return gson.toJson(payload)
@@ -276,6 +376,8 @@ class WidgetStorage(private val context: Context) {
                     .putString("clock_widgets_list", gson.toJson(payload.clocks))
                     .putString("note_widgets_list", gson.toJson(payload.notes))
                     .putString("icon_widgets_list", gson.toJson(payload.icons))
+                    .putString("music_widgets_list", gson.toJson(payload.music))
+                    .putString("bento_widgets_list", gson.toJson(payload.bento))
                     .putString("widget_instance_bindings", gson.toJson(payload.bindings))
                     .apply()
                 true

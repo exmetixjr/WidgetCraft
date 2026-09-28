@@ -37,12 +37,14 @@ fun ConfigurePickerScreen(
 ) {
     val context = LocalContext.current
     var selectedTab by remember { mutableIntStateOf(0) }
-    val tabs = listOf("Photos", "Clocks", "Notes", "Icons")
+    val tabs = listOf("Photos", "Clocks", "Notes", "Icons", "Music", "Bento")
 
     val imagePresets = remember { storage.getAllImageConfigs() }
     val clockPresets = remember { storage.getAllClockConfigs() }
     val notePresets = remember { storage.getAllNoteConfigs() }
     val iconPresets = remember { storage.getAllIconConfigs() }
+    val musicPresets = remember { storage.getAllMusicConfigs() }
+    val bentoPresets = remember { storage.getAllBentoConfigs() }
 
     Scaffold(
         topBar = {
@@ -61,10 +63,11 @@ fun ConfigurePickerScreen(
                 .fillMaxSize()
                 .padding(padding)
         ) {
-            TabRow(
+            ScrollableTabRow(
                 selectedTabIndex = selectedTab,
                 containerColor = MaterialTheme.colorScheme.surface,
-                contentColor = MaterialTheme.colorScheme.primary
+                contentColor = MaterialTheme.colorScheme.primary,
+                edgePadding = 12.dp
             ) {
                 tabs.forEachIndexed { index, title ->
                     Tab(
@@ -274,6 +277,90 @@ fun ConfigurePickerScreen(
                                                 color = MaterialTheme.colorScheme.primary
                                             )
                                         }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                4 -> {
+                    if (musicPresets.isEmpty()) {
+                        EmptyPresetView(
+                            message = "No music player presets found.",
+                            actionText = "Open App",
+                            onAction = onCancel
+                        )
+                    } else {
+                        LazyColumn(
+                            modifier = Modifier.fillMaxSize(),
+                            contentPadding = PaddingValues(16.dp),
+                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            items(musicPresets) { preset ->
+                                Card(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable { onSelectPreset(preset.id, "MUSIC") },
+                                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+                                ) {
+                                    Column(modifier = Modifier.padding(14.dp)) {
+                                        Text(preset.name, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                                        Text(
+                                            "${preset.style.name.replace('_', ' ')} • ${preset.artistName} - ${preset.trackTitle}",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                        Spacer(Modifier.height(8.dp))
+                                        val bmp = remember(preset) {
+                                            WidgetRenderer.renderMusicWidget(context, preset, albumArt = null, targetWidth = 500, targetHeight = 250)
+                                        }
+                                        Image(
+                                            bitmap = bmp.asImageBitmap(),
+                                            contentDescription = null,
+                                            modifier = Modifier.fillMaxWidth().height(120.dp).clip(RoundedCornerShape(8.dp))
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                5 -> {
+                    if (bentoPresets.isEmpty()) {
+                        EmptyPresetView(
+                            message = "No Bento dashboard presets found.",
+                            actionText = "Open App",
+                            onAction = onCancel
+                        )
+                    } else {
+                        LazyColumn(
+                            modifier = Modifier.fillMaxSize(),
+                            contentPadding = PaddingValues(16.dp),
+                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            items(bentoPresets) { preset ->
+                                Card(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable { onSelectPreset(preset.id, "BENTO") },
+                                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+                                ) {
+                                    Column(modifier = Modifier.padding(14.dp)) {
+                                        Text(preset.name, fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                                        Text(
+                                            "${preset.style.name.replace('_', ' ')} • Multi-Hotspot Command Center",
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                        Spacer(Modifier.height(8.dp))
+                                        val bmp = remember(preset) {
+                                            WidgetRenderer.renderBentoWidget(context, preset, targetWidth = 600, targetHeight = 320)
+                                        }
+                                        Image(
+                                            bitmap = bmp.asImageBitmap(),
+                                            contentDescription = null,
+                                            modifier = Modifier.fillMaxWidth().height(120.dp).clip(RoundedCornerShape(8.dp))
+                                        )
                                     }
                                 }
                             }

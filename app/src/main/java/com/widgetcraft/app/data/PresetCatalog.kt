@@ -160,4 +160,78 @@ object PresetCatalog {
             )
         )
     }
+
+    fun getDefaultMusicPresets(): List<MusicWidgetConfig> {
+        return listOf(
+            MusicWidgetConfig(
+                id = "preset_music_nothing",
+                name = "Nothing Dot Player",
+                style = MusicStyle.NOTHING_DOT,
+                trackTitle = "Blinding Lights",
+                artistName = "The Weeknd",
+                isPlaying = true,
+                backgroundColorHex = "#000000",
+                textColorHex = "#FFFFFF",
+                accentColorHex = "#D71921",
+                cornerRadiusDp = 26f
+            ),
+            MusicWidgetConfig(
+                id = "preset_music_vinyl",
+                name = "Retro Vinyl Disc",
+                style = MusicStyle.VINYL_DISC,
+                trackTitle = "Random Access Memories",
+                artistName = "Daft Punk",
+                isPlaying = true,
+                backgroundColorHex = "#141416",
+                textColorHex = "#F59E0B",
+                accentColorHex = "#EAB308",
+                cornerRadiusDp = 24f
+            ),
+            MusicWidgetConfig(
+                id = "preset_music_glass",
+                name = "Frosted Glass Player",
+                style = MusicStyle.FROSTED_GLASS,
+                trackTitle = "Midnight City",
+                artistName = "M83",
+                isPlaying = false,
+                backgroundColorHex = "#1E293B",
+                textColorHex = "#FFFFFF",
+                accentColorHex = "#38BDF8",
+                cornerRadiusDp = 28f
+            )
+        )
+    }
+
+    fun getDefaultBentoPresets(): List<BentoWidgetConfig> {
+        return listOf(
+            BentoWidgetConfig(
+                id = "preset_bento_nothing",
+                name = "Nothing Bento Hub",
+                style = BentoStyle.NOTHING_OS,
+                backgroundColorHex = "#000000",
+                accentColorHex = "#D71921",
+                textColorHex = "#FFFFFF",
+                cornerRadiusDp = 28f
+            ),
+            BentoWidgetConfig(
+                id = "preset_bento_cyber",
+                name = "Cyberpunk Telemetry",
+                style = BentoStyle.CYBERPUNK_HUD,
+                backgroundColorHex = "#090D16",
+                accentColorHex = "#06B6D4",
+                textColorHex = "#38BDF8",
+                cornerRadiusDp = 22f
+            ),
+            BentoWidgetConfig(
+                id = "preset_bento_glass",
+                name = "Frosted Bento Suite",
+                style = BentoStyle.FROSTED_ACRYLIC,
+                backgroundColorHex = "#1E293B",
+                accentColorHex = "#A855F7",
+                textColorHex = "#FFFFFF",
+                cornerRadiusDp = 26f
+            )
+        )
+    }
 }
+

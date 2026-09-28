@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import com.widgetcraft.app.data.StepCounterHelper
 import com.widgetcraft.app.data.WidgetStorage
 import com.widgetcraft.app.ui.screens.*
 import com.widgetcraft.app.ui.theme.WidgetCraftTheme
@@ -21,6 +22,8 @@ sealed class Screen {
     data class EditClockWidget(val presetId: String?) : Screen()
     data class EditNoteWidget(val presetId: String?) : Screen()
     data class EditIconWidget(val presetId: String?) : Screen()
+    data class EditMusicWidget(val presetId: String?) : Screen()
+    data class EditBentoWidget(val presetId: String?) : Screen()
     object AiStudio : Screen()
     data class ConfigurePicker(val appWidgetId: Int) : Screen()
 }
@@ -31,6 +34,8 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        StepCounterHelper.startListening(this)
 
         val storage = WidgetStorage(this)
 
@@ -68,6 +73,8 @@ class MainActivity : ComponentActivity() {
                                         "CLOCK" -> Screen.EditClockWidget(directEditPresetId)
                                         "NOTE" -> Screen.EditNoteWidget(directEditPresetId)
                                         "ICON" -> Screen.EditIconWidget(directEditPresetId)
+                                        "MUSIC" -> Screen.EditMusicWidget(directEditPresetId)
+                                        "BENTO" -> Screen.EditBentoWidget(directEditPresetId)
                                         else -> Screen.EditImageWidget(directEditPresetId)
                                     }
                                 }
@@ -87,6 +94,8 @@ class MainActivity : ComponentActivity() {
                                 onNavigateToClockEditor = { id -> currentScreen = Screen.EditClockWidget(id) },
                                 onNavigateToNoteEditor = { id -> currentScreen = Screen.EditNoteWidget(id) },
                                 onNavigateToIconChanger = { id -> currentScreen = Screen.EditIconWidget(id) },
+                                onNavigateToMusicEditor = { id -> currentScreen = Screen.EditMusicWidget(id) },
+                                onNavigateToBentoEditor = { id -> currentScreen = Screen.EditBentoWidget(id) },
                                 onNavigateToAiStudio = { currentScreen = Screen.AiStudio }
                             )
                         }
@@ -158,6 +167,32 @@ class MainActivity : ComponentActivity() {
                         }
                         is Screen.EditIconWidget -> {
                             IconChangerScreen(
+                                storage = storage,
+                                presetId = screen.presetId,
+                                onNavigateBack = {
+                                    if (configureAppWidgetId != AppWidgetManager.INVALID_APPWIDGET_ID) {
+                                        currentScreen = Screen.ConfigurePicker(configureAppWidgetId)
+                                    } else {
+                                        currentScreen = Screen.Home
+                                    }
+                                }
+                            )
+                        }
+                        is Screen.EditMusicWidget -> {
+                            MusicWidgetEditorScreen(
+                                storage = storage,
+                                presetId = screen.presetId,
+                                onNavigateBack = {
+                                    if (configureAppWidgetId != AppWidgetManager.INVALID_APPWIDGET_ID) {
+                                        currentScreen = Screen.ConfigurePicker(configureAppWidgetId)
+                                    } else {
+                                        currentScreen = Screen.Home
+                                    }
+                                }
+                            )
+                        }
+                        is Screen.EditBentoWidget -> {
+                            BentoWidgetEditorScreen(
                                 storage = storage,
                                 presetId = screen.presetId,
                                 onNavigateBack = {

@@ -33,16 +33,20 @@ fun HomeScreen(
     onNavigateToClockEditor: (String?) -> Unit,
     onNavigateToNoteEditor: (String?) -> Unit,
     onNavigateToIconChanger: (String?) -> Unit,
+    onNavigateToMusicEditor: (String?) -> Unit,
+    onNavigateToBentoEditor: (String?) -> Unit,
     onNavigateToAiStudio: () -> Unit
 ) {
     var selectedTab by remember { mutableIntStateOf(0) }
-    val tabs = listOf("Photo Widgets", "Clock Widgets", "Notes & Tasks", "Custom Icons")
+    val tabs = listOf("Photo", "Clock", "Notes", "Icons", "Music", "Bento")
     val context = LocalContext.current
 
     var imageWidgets by remember { mutableStateOf(storage.getAllImageConfigs()) }
     var clockWidgets by remember { mutableStateOf(storage.getAllClockConfigs()) }
     var noteWidgets by remember { mutableStateOf(storage.getAllNoteConfigs()) }
     var iconWidgets by remember { mutableStateOf(storage.getAllIconConfigs()) }
+    var musicWidgets by remember { mutableStateOf(storage.getAllMusicConfigs()) }
+    var bentoWidgets by remember { mutableStateOf(storage.getAllBentoConfigs()) }
 
     var showBackupDialog by remember { mutableStateOf(false) }
 
@@ -51,6 +55,8 @@ fun HomeScreen(
         clockWidgets = storage.getAllClockConfigs()
         noteWidgets = storage.getAllNoteConfigs()
         iconWidgets = storage.getAllIconConfigs()
+        musicWidgets = storage.getAllMusicConfigs()
+        bentoWidgets = storage.getAllBentoConfigs()
     }
 
     Scaffold(
@@ -96,6 +102,8 @@ fun HomeScreen(
                         1 -> onNavigateToClockEditor(null)
                         2 -> onNavigateToNoteEditor(null)
                         3 -> onNavigateToIconChanger(null)
+                        4 -> onNavigateToMusicEditor(null)
+                        5 -> onNavigateToBentoEditor(null)
                     }
                 },
                 icon = { Icon(Icons.Default.Add, null) },
@@ -105,7 +113,10 @@ fun HomeScreen(
                             0 -> "New Photo Widget"
                             1 -> "New Clock Widget"
                             2 -> "New Note Widget"
-                            else -> "New Custom Icon"
+                            3 -> "New Custom Icon"
+                            4 -> "New Music Widget"
+                            5 -> "New Bento Widget"
+                            else -> "New Widget"
                         }
                     )
                 },
@@ -175,6 +186,26 @@ fun HomeScreen(
                     onDelete = { id ->
                         storage.deleteIconConfig(id)
                         IconWidgetProvider.refreshAllWidgets(context)
+                        refreshData()
+                    }
+                )
+                4 -> MusicWidgetsList(
+                    context = context,
+                    storage = storage,
+                    widgets = musicWidgets,
+                    onEdit = onNavigateToMusicEditor,
+                    onDelete = { id ->
+                        storage.deleteMusicConfig(id)
+                        refreshData()
+                    }
+                )
+                5 -> BentoWidgetsList(
+                    context = context,
+                    storage = storage,
+                    widgets = bentoWidgets,
+                    onEdit = onNavigateToBentoEditor,
+                    onDelete = { id ->
+                        storage.deleteBentoConfig(id)
                         refreshData()
                     }
                 )
@@ -690,3 +721,208 @@ fun EmptyStateView(title: String, subtitle: String) {
         }
     }
 }
+
+@Composable
+fun MusicWidgetsList(
+    context: Context,
+    storage: WidgetStorage,
+    widgets: List<MusicWidgetConfig>,
+    onEdit: (String) -> Unit,
+    onDelete: (String) -> Unit
+) {
+    if (widgets.isEmpty()) {
+        EmptyStateView(
+            title = "No Music Widgets Created",
+            subtitle = "Tap '+ New Music Widget' to add a live Spotify / YouTube Music player with transport controls."
+        )
+    } else {
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(16.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            items(widgets, key = { it.id }) { widget ->
+                val boundCount = remember(widget) { storage.getWidgetIdsForPreset(widget.id).size }
+                val bitmap = remember(widget) {
+                    WidgetRenderer.renderMusicWidget(context, widget, albumArt = null, targetWidth = 720, targetHeight = 360)
+                }
+
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Column {
+                                Text(widget.name, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                                Text(
+                                    "${widget.style.name.replace('_', ' ')} • ${widget.artistName} - ${widget.trackTitle}",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                if (boundCount > 0) {
+                                    Text(
+                                        "Active on Home Screen ($boundCount)",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.primary
+                                    )
+                                }
+                            }
+                            Row {
+                                IconButton(onClick = { onEdit(widget.id) }) {
+                                    Icon(Icons.Default.Edit, contentDescription = "Edit")
+                                }
+                                IconButton(onClick = { onDelete(widget.id) }) {
+                                    Icon(Icons.Default.Delete, contentDescription = "Delete", tint = MaterialTheme.colorScheme.error)
+                                }
+                            }
+                        }
+
+                        Spacer(Modifier.height(12.dp))
+
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(160.dp)
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(MaterialTheme.colorScheme.surfaceVariant),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Image(
+                                bitmap = bitmap.asImageBitmap(),
+                                contentDescription = null,
+                                modifier = Modifier.fillMaxWidth().height(150.dp).padding(6.dp)
+                            )
+                        }
+
+                        Spacer(Modifier.height(12.dp))
+
+                        Button(
+                            onClick = {
+                                WidgetPinManager.pinMusicWidget(
+                                    context = context,
+                                    presetId = widget.id,
+                                    previewBitmap = bitmap
+                                )
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+                        ) {
+                            Icon(Icons.Default.AddToHomeScreen, null)
+                            Spacer(Modifier.width(8.dp))
+                            Text("Pin Music Player to Home Screen")
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun BentoWidgetsList(
+    context: Context,
+    storage: WidgetStorage,
+    widgets: List<BentoWidgetConfig>,
+    onEdit: (String) -> Unit,
+    onDelete: (String) -> Unit
+) {
+    if (widgets.isEmpty()) {
+        EmptyStateView(
+            title = "No Bento Dashboards Created",
+            subtitle = "Tap '+ New Bento Widget' to create a unified command center with Weather, Clock, Pedometer, and Battery."
+        )
+    } else {
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(16.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            items(widgets, key = { it.id }) { widget ->
+                val boundCount = remember(widget) { storage.getWidgetIdsForPreset(widget.id).size }
+                val bitmap = remember(widget) {
+                    WidgetRenderer.renderBentoWidget(context, widget, targetWidth = 900, targetHeight = 480)
+                }
+
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Column {
+                                Text(widget.name, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                                Text(
+                                    "${widget.style.name.replace('_', ' ')} • 4 Tap Hotspots Active",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                if (boundCount > 0) {
+                                    Text(
+                                        "Active on Home Screen ($boundCount)",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.primary
+                                    )
+                                }
+                            }
+                            Row {
+                                IconButton(onClick = { onEdit(widget.id) }) {
+                                    Icon(Icons.Default.Edit, contentDescription = "Edit")
+                                }
+                                IconButton(onClick = { onDelete(widget.id) }) {
+                                    Icon(Icons.Default.Delete, contentDescription = "Delete", tint = MaterialTheme.colorScheme.error)
+                                }
+                            }
+                        }
+
+                        Spacer(Modifier.height(12.dp))
+
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(170.dp)
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(MaterialTheme.colorScheme.surfaceVariant),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Image(
+                                bitmap = bitmap.asImageBitmap(),
+                                contentDescription = null,
+                                modifier = Modifier.fillMaxWidth().height(160.dp).padding(6.dp)
+                            )
+                        }
+
+                        Spacer(Modifier.height(12.dp))
+
+                        Button(
+                            onClick = {
+                                WidgetPinManager.pinBentoWidget(
+                                    context = context,
+                                    presetId = widget.id,
+                                    previewBitmap = bitmap
+                                )
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+                        ) {
+                            Icon(Icons.Default.AddToHomeScreen, null)
+                            Spacer(Modifier.width(8.dp))
+                            Text("Pin Bento Dashboard to Home Screen")
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+

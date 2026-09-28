@@ -49,6 +49,8 @@ object WidgetPinManager {
                     "CLOCK" -> R.layout.widget_clock
                     "NOTE" -> R.layout.widget_note
                     "ICON" -> R.layout.widget_icon
+                    "MUSIC" -> R.layout.widget_music
+                    "BENTO" -> R.layout.widget_bento
                     else -> R.layout.widget_image
                 }
                 val previewViews = RemoteViews(context.packageName, layoutRes)
@@ -56,6 +58,8 @@ object WidgetPinManager {
                     "CLOCK" -> R.id.widget_clock_image_view
                     "NOTE" -> R.id.widget_note_image_view
                     "ICON" -> R.id.widget_icon_image_view
+                    "MUSIC" -> R.id.widget_music_image_view
+                    "BENTO" -> R.id.widget_bento_image_view
                     else -> R.id.widget_image_view
                 }
                 previewViews.setImageViewBitmap(imgViewId, previewBitmap)
@@ -110,6 +114,26 @@ object WidgetPinManager {
         )
     }
 
+    fun pinMusicWidget(context: Context, presetId: String, previewBitmap: Bitmap? = null): Boolean {
+        return requestPinWidget(
+            context = context,
+            providerClass = MusicWidgetProvider::class.java,
+            presetId = presetId,
+            widgetType = "MUSIC",
+            previewBitmap = previewBitmap
+        )
+    }
+
+    fun pinBentoWidget(context: Context, presetId: String, previewBitmap: Bitmap? = null): Boolean {
+        return requestPinWidget(
+            context = context,
+            providerClass = BentoWidgetProvider::class.java,
+            presetId = presetId,
+            widgetType = "BENTO",
+            previewBitmap = previewBitmap
+        )
+    }
+
     fun completeConfiguration(
         activity: Activity,
         appWidgetId: Int,
@@ -124,6 +148,8 @@ object WidgetPinManager {
             "CLOCK" -> ClockWidgetProvider.updateWidget(activity, appWidgetManager, appWidgetId, storage)
             "NOTE" -> NoteWidgetProvider.updateWidget(activity, appWidgetManager, appWidgetId, storage)
             "ICON" -> IconWidgetProvider.updateWidget(activity, appWidgetManager, appWidgetId, storage)
+            "MUSIC" -> MusicWidgetProvider.updateWidget(activity, appWidgetManager, appWidgetId, storage)
+            "BENTO" -> BentoWidgetProvider.updateWidget(activity, appWidgetManager, appWidgetId, storage)
             else -> ImageWidgetProvider.updateWidget(activity, appWidgetManager, appWidgetId, storage)
         }
 

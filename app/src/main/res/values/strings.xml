@@ -4,8 +4,12 @@
     <string name="widget_clock_name">Custom Clock &amp; Battery Widget</string>
     <string name="widget_note_name">Custom Sticky Note &amp; Quote Widget</string>
     <string name="widget_icon_name">Custom App Icon (Micro-Widget)</string>
+    <string name="widget_music_name">Live Music &amp; Now Playing Widget</string>
+    <string name="widget_bento_name">Bento Multi-Hotspot Command Center</string>
     <string name="widget_image_desc">Display single or collage photos in custom shapes and frames.</string>
     <string name="widget_clock_desc">Scalable digital/analog clock with battery and storage indicators.</string>
     <string name="widget_note_desc">Customizable sticky notes, checklists, and daily quotes.</string>
     <string name="widget_icon_desc">Border-free 1x1 app shortcut widget with no launcher badge.</string>
+    <string name="widget_music_desc">Live playback controls and album art for Spotify, YouTube Music, and media.</string>
+    <string name="widget_bento_desc">Unified 4x2 dashboard with clock, weather, calendar, and system diagnostics.</string>
 </resources>

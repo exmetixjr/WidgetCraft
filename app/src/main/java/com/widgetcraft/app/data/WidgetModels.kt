@@ -70,7 +70,9 @@ enum class ClockStyle {
     TERMINAL,
     DIGITAL_SEVEN_SEGMENT,
     ANALOG_MINIMAL,
-    ANALOG_CLASSIC
+    ANALOG_CLASSIC,
+    NOTHING_DOT_MATRIX,
+    FROSTED_GLASS
 }
 
 data class ClockWidgetConfig(
@@ -83,6 +85,7 @@ data class ClockWidgetConfig(
     var showStorage: Boolean = false,
     var showRam: Boolean = false,
     var showWeather: Boolean = false,
+    var showSteps: Boolean = false,
     var weatherTemp: String = "24°C",
     var weatherCondition: String = "SUNNY",
     var textColorHex: String = "#FFFFFF",
@@ -156,3 +159,63 @@ data class InstalledAppInfo(
     val appName: String,
     val activityName: String
 )
+
+enum class MusicStyle {
+    VINYL_DISC,
+    NOTHING_DOT,
+    FROSTED_GLASS,
+    MINIMAL_CARD,
+    CYBERPUNK_NEON
+}
+
+data class MusicWidgetConfig(
+    val id: String = java.util.UUID.randomUUID().toString(),
+    var name: String = "Now Playing",
+    var style: MusicStyle = MusicStyle.NOTHING_DOT,
+    var trackTitle: String = "Starboy",
+    var artistName: String = "The Weeknd",
+    var isPlaying: Boolean = false,
+    var progressMs: Long = 85000,
+    var durationMs: Long = 230000,
+    var albumArtUri: String? = null,
+    var backgroundColorHex: String = "#0A0A0A",
+    var textColorHex: String = "#FFFFFF",
+    var accentColorHex: String = "#D71921",
+    var cornerRadiusDp: Float = 24f
+)
+
+enum class BentoStyle {
+    NOTHING_OS,
+    CYBERPUNK_HUD,
+    MINIMAL_MONOCHROME,
+    FROSTED_ACRYLIC
+}
+
+data class BentoWidgetConfig(
+    val id: String = java.util.UUID.randomUUID().toString(),
+    var name: String = "Bento Command Center",
+    var style: BentoStyle = BentoStyle.NOTHING_OS,
+    var showClock: Boolean = true,
+    var showWeather: Boolean = true,
+    var showBattery: Boolean = true,
+    var showRam: Boolean = true,
+    var showSteps: Boolean = true,
+    var showMusicSnippet: Boolean = true,
+    var backgroundColorHex: String = "#121212",
+    var accentColorHex: String = "#D71921",
+    var textColorHex: String = "#FFFFFF",
+    var cornerRadiusDp: Float = 28f
+)
+
+data class WeatherForecastData(
+    val temp: String = "24°C",
+    val condition: String = "Clear Sky",
+    val wmoCode: Int = 0,
+    val windSpeed: String = "12 km/h",
+    val humidity: String = "48%",
+    val locationName: String = "Local Area",
+    val dailyHigh: String = "27°C",
+    val dailyLow: String = "18°C",
+    val lastUpdatedMs: Long = System.currentTimeMillis()
+)
+

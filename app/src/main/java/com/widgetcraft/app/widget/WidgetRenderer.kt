@@ -222,6 +222,12 @@ object WidgetRenderer {
             ClockStyle.ANALOG_MINIMAL, ClockStyle.ANALOG_CLASSIC -> {
                 drawAnalogClock(canvas, targetWidth, targetHeight, now, textColor, accentColor, config.style == ClockStyle.ANALOG_CLASSIC)
             }
+            ClockStyle.NOTHING_DOT_MATRIX -> {
+                drawNothingDotMatrixClock(canvas, targetWidth, targetHeight, timeString, dateString, textColor, accentColor)
+            }
+            ClockStyle.FROSTED_GLASS -> {
+                drawFrostedGlassClock(canvas, targetWidth, targetHeight, timeString, dateString, textColor, accentColor)
+            }
         }
 
         drawStatusBadges(context, canvas, targetWidth, targetHeight, config, accentColor)
@@ -446,6 +452,451 @@ object WidgetRenderer {
         }
 
         return output
+    }
+
+    // --- Music & Now Playing Widget Rendering ---
+
+    fun renderMusicWidget(
+        context: Context,
+        config: MusicWidgetConfig,
+        liveAlbumArt: Bitmap? = null,
+        targetWidth: Int = 850,
+        targetHeight: Int = 420
+    ): Bitmap {
+        val output = Bitmap.createBitmap(targetWidth, targetHeight, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(output)
+
+        val bgColor = parseColor(config.backgroundColorHex, Color.parseColor("#0A0A0A"))
+        val textColor = parseColor(config.textColorHex, Color.WHITE)
+        val accentColor = parseColor(config.accentColorHex, Color.parseColor("#D71921"))
+
+        val cornerRadius = config.cornerRadiusDp * (targetWidth / 300f)
+        val rect = RectF(0f, 0f, targetWidth.toFloat(), targetHeight.toFloat())
+
+        val bgPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = bgColor
+            style = Paint.Style.FILL
+        }
+        canvas.drawRoundRect(rect, cornerRadius, cornerRadius, bgPaint)
+
+        if (config.style == MusicStyle.FROSTED_GLASS) {
+            val strokePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                style = Paint.Style.STROKE
+                strokeWidth = 3f
+                color = Color.parseColor("#40FFFFFF")
+            }
+            canvas.drawRoundRect(rect, cornerRadius, cornerRadius, strokePaint)
+        } else if (config.style == MusicStyle.NOTHING_DOT) {
+            val strokePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                style = Paint.Style.STROKE
+                strokeWidth = 3f
+                color = Color.parseColor("#26FFFFFF")
+            }
+            canvas.drawRoundRect(rect, cornerRadius, cornerRadius, strokePaint)
+        }
+
+        // Album Art / Vinyl
+        val artPadding = targetHeight * 0.12f
+        val artSize = targetHeight * 0.76f
+        val artRect = RectF(artPadding, artPadding, artPadding + artSize, artPadding + artSize)
+
+        val albumArtBitmap = liveAlbumArt ?: config.albumArtUri?.let { WidgetStorage(context).loadBitmap(it) }
+
+        if (config.style == MusicStyle.VINYL_DISC) {
+            drawVinylDisc(canvas, artRect, albumArtBitmap, accentColor)
+        } else {
+            drawAlbumArtCard(canvas, artRect, albumArtBitmap, cornerRadius * 0.5f, accentColor)
+        }
+
+        // Track Information
+        val textLeft = artPadding + artSize + 36f
+        val textMaxRight = targetWidth - 36f
+
+        val titlePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = textColor
+            textSize = targetHeight * 0.13f
+            typeface = if (config.style == MusicStyle.NOTHING_DOT) Typeface.MONOSPACE else Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+        }
+
+        val artistPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = if (config.style == MusicStyle.NOTHING_DOT) accentColor else Color.LTGRAY
+            textSize = targetHeight * 0.085f
+            typeface = if (config.style == MusicStyle.NOTHING_DOT) Typeface.MONOSPACE else Typeface.DEFAULT
+        }
+
+        val titleY = targetHeight * 0.32f
+        val titleText = if (titlePaint.measureText(config.trackTitle) > (textMaxRight - textLeft)) {
+            config.trackTitle.take(16) + "…"
+        } else {
+            config.trackTitle
+        }
+        canvas.drawText(titleText, textLeft, titleY, titlePaint)
+        canvas.drawText(config.artistName, textLeft, titleY + targetHeight * 0.13f, artistPaint)
+
+        // Progress Bar
+        val progressY = targetHeight * 0.58f
+        val progressW = textMaxRight - textLeft
+        val barPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.parseColor("#33FFFFFF")
+            strokeWidth = 6f
+            strokeCap = Paint.Cap.ROUND
+        }
+        canvas.drawLine(textLeft, progressY, textMaxRight, progressY, barPaint)
+
+        val fillPct = if (config.durationMs > 0) (config.progressMs.toFloat() / config.durationMs.toFloat()).coerceIn(0.1f, 1.0f) else 0.45f
+        val fillPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = accentColor
+            strokeWidth = 6f
+            strokeCap = Paint.Cap.ROUND
+        }
+        canvas.drawLine(textLeft, progressY, textLeft + (progressW * fillPct), progressY, fillPaint)
+
+        // Transport Controls
+        drawTransportControls(canvas, targetWidth, targetHeight, config.isPlaying, textColor, accentColor)
+
+        return output
+    }
+
+    private fun drawAlbumArtCard(canvas: Canvas, rect: RectF, bitmap: Bitmap?, radius: Float, accentColor: Int) {
+        val path = Path().apply { addRoundRect(rect, radius, radius, Path.Direction.CW) }
+        canvas.save()
+        canvas.clipPath(path)
+
+        if (bitmap != null) {
+            val paint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
+            canvas.drawBitmap(bitmap, null, rect, paint)
+        } else {
+            val bgPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = Color.parseColor("#222222")
+            }
+            canvas.drawRect(rect, bgPaint)
+            val notePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = accentColor
+                textSize = rect.width() * 0.45f
+                textAlign = Paint.Align.CENTER
+            }
+            canvas.drawText("🎵", rect.centerX(), rect.centerY() + (notePaint.textSize * 0.35f), notePaint)
+        }
+        canvas.restore()
+
+        val strokePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.STROKE
+            strokeWidth = 2f
+            color = Color.parseColor("#33FFFFFF")
+        }
+        canvas.drawRoundRect(rect, radius, radius, strokePaint)
+    }
+
+    private fun drawVinylDisc(canvas: Canvas, rect: RectF, centerArt: Bitmap?, accentColor: Int) {
+        val cx = rect.centerX()
+        val cy = rect.centerY()
+        val radius = min(rect.width(), rect.height()) / 2f
+
+        val vinylPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.parseColor("#111111")
+            style = Paint.Style.FILL
+        }
+        canvas.drawCircle(cx, cy, radius, vinylPaint)
+
+        // Grooves
+        val groovePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.STROKE
+            strokeWidth = 1.5f
+            color = Color.parseColor("#22FFFFFF")
+        }
+        canvas.drawCircle(cx, cy, radius * 0.85f, groovePaint)
+        canvas.drawCircle(cx, cy, radius * 0.70f, groovePaint)
+        canvas.drawCircle(cx, cy, radius * 0.55f, groovePaint)
+
+        // Center Label
+        val labelRadius = radius * 0.38f
+        val labelRect = RectF(cx - labelRadius, cy - labelRadius, cx + labelRadius, cy + labelRadius)
+        val path = Path().apply { addCircle(cx, cy, labelRadius, Path.Direction.CW) }
+        canvas.save()
+        canvas.clipPath(path)
+        if (centerArt != null) {
+            canvas.drawBitmap(centerArt, null, labelRect, Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG))
+        } else {
+            val labelPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = accentColor }
+            canvas.drawCircle(cx, cy, labelRadius, labelPaint)
+        }
+        canvas.restore()
+
+        // Spindle Hole
+        val holePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.parseColor("#0A0A0A") }
+        canvas.drawCircle(cx, cy, radius * 0.08f, holePaint)
+    }
+
+    private fun drawTransportControls(
+        canvas: Canvas,
+        w: Int,
+        h: Int,
+        isPlaying: Boolean,
+        textColor: Int,
+        accentColor: Int
+    ) {
+        val btnY = h - 38f
+        val nextX = w - 40f
+        val playX = w - 95f
+        val prevX = w - 150f
+
+        val ctrlPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = textColor
+            textSize = 28f
+            textAlign = Paint.Align.CENTER
+        }
+        val playPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = accentColor
+            textSize = 34f
+            textAlign = Paint.Align.CENTER
+        }
+
+        canvas.drawText("⏮", prevX, btnY, ctrlPaint)
+        canvas.drawText(if (isPlaying) "⏸" else "▶", playX, btnY, playPaint)
+        canvas.drawText("⏭", nextX, btnY, ctrlPaint)
+    }
+
+    // --- Bento Multi-Hotspot Dashboard Widget Rendering ---
+
+    fun renderBentoWidget(
+        context: Context,
+        config: BentoWidgetConfig,
+        targetWidth: Int = 900,
+        targetHeight: Int = 480
+    ): Bitmap {
+        val output = Bitmap.createBitmap(targetWidth, targetHeight, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(output)
+
+        val bgColor = parseColor(config.backgroundColorHex, Color.parseColor("#121212"))
+        val textColor = parseColor(config.textColorHex, Color.WHITE)
+        val accentColor = parseColor(config.accentColorHex, Color.parseColor("#D71921"))
+
+        val cornerRadius = config.cornerRadiusDp * (targetWidth / 350f)
+        val cardRect = RectF(0f, 0f, targetWidth.toFloat(), targetHeight.toFloat())
+
+        val bgPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = bgColor
+            style = Paint.Style.FILL
+        }
+        canvas.drawRoundRect(cardRect, cornerRadius, cornerRadius, bgPaint)
+
+        val pad = 16f
+        val innerCorner = 20f
+        val halfW = (targetWidth - (pad * 3f)) / 2f
+        val halfH = (targetHeight - (pad * 3f)) / 2f
+
+        val quadrantBg = when (config.style) {
+            BentoStyle.NOTHING_OS -> Color.parseColor("#181818")
+            BentoStyle.CYBERPUNK_HUD -> Color.parseColor("#0F172A")
+            BentoStyle.FROSTED_ACRYLIC -> Color.parseColor("#26FFFFFF")
+            BentoStyle.MINIMAL_MONOCHROME -> Color.parseColor("#202020")
+        }
+        val qPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = quadrantBg
+            style = Paint.Style.FILL
+        }
+
+        val borderPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.STROKE
+            strokeWidth = 2f
+            color = when (config.style) {
+                BentoStyle.NOTHING_OS -> Color.parseColor("#33FFFFFF")
+                BentoStyle.CYBERPUNK_HUD -> Color.parseColor("#2006B6D4")
+                BentoStyle.FROSTED_ACRYLIC -> Color.parseColor("#40FFFFFF")
+                BentoStyle.MINIMAL_MONOCHROME -> Color.parseColor("#26FFFFFF")
+            }
+        }
+
+        val q1 = RectF(pad, pad, pad + halfW * 1.12f, pad + halfH)
+        val q2 = RectF(q1.right + pad, pad, targetWidth - pad, pad + halfH)
+        val q3 = RectF(pad, q1.bottom + pad, pad + halfW * 0.96f, targetHeight - pad)
+        val q4 = RectF(q3.right + pad, q1.bottom + pad, targetWidth - pad, targetHeight - pad)
+
+        listOf(q1, q2, q3, q4).forEach { q ->
+            canvas.drawRoundRect(q, innerCorner, innerCorner, qPaint)
+            canvas.drawRoundRect(q, innerCorner, innerCorner, borderPaint)
+        }
+
+        // Q1: Time & Date
+        val now = Calendar.getInstance()
+        val timeStr = SimpleDateFormat("HH:mm", Locale.getDefault()).format(now.time)
+        val dateStr = SimpleDateFormat("EEE, MMM d", Locale.getDefault()).format(now.time).uppercase()
+        drawBentoClockQuadrant(canvas, q1, timeStr, dateStr, textColor, accentColor, config.style)
+
+        // Q2: Weather
+        val weather = WeatherHelper.getCachedWeather(context)
+        drawBentoWeatherQuadrant(canvas, q2, weather, textColor, accentColor, config.style)
+
+        // Q3: Step Tracker
+        val steps = StepCounterHelper.getTodaySteps(context)
+        drawBentoStepsQuadrant(canvas, q3, steps, textColor, accentColor)
+
+        // Q4: Diagnostics
+        drawBentoDiagnosticsQuadrant(context, canvas, q4, textColor, accentColor)
+
+        return output
+    }
+
+    private fun drawBentoClockQuadrant(
+        canvas: Canvas,
+        q: RectF,
+        timeStr: String,
+        dateStr: String,
+        textColor: Int,
+        accentColor: Int,
+        style: BentoStyle
+    ) {
+        val timePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = textColor
+            textSize = q.height() * 0.44f
+            typeface = if (style == BentoStyle.NOTHING_OS || style == BentoStyle.CYBERPUNK_HUD) Typeface.MONOSPACE else Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+            letterSpacing = 0.05f
+        }
+        val datePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.LTGRAY
+            textSize = q.height() * 0.12f
+            typeface = if (style == BentoStyle.NOTHING_OS) Typeface.MONOSPACE else Typeface.DEFAULT
+        }
+        val dotPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = accentColor
+            style = Paint.Style.FILL
+        }
+
+        canvas.drawText(timeStr, q.left + 24f, q.top + q.height() * 0.52f, timePaint)
+
+        val dateY = q.top + q.height() * 0.78f
+        canvas.drawCircle(q.left + 30f, dateY - 6f, 6f, dotPaint)
+        canvas.drawText(dateStr, q.left + 44f, dateY, datePaint)
+    }
+
+    private fun drawBentoWeatherQuadrant(
+        canvas: Canvas,
+        q: RectF,
+        weather: WeatherForecastData,
+        textColor: Int,
+        accentColor: Int,
+        style: BentoStyle
+    ) {
+        val glyph = WeatherHelper.mapWmoCodeToGlyph(weather.wmoCode)
+        val glyphPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            textSize = q.height() * 0.38f
+        }
+        val tempPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = textColor
+            textSize = q.height() * 0.32f
+            typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+        }
+        val condPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = accentColor
+            textSize = q.height() * 0.12f
+            typeface = if (style == BentoStyle.NOTHING_OS) Typeface.MONOSPACE else Typeface.DEFAULT_BOLD
+        }
+        val rangePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.LTGRAY
+            textSize = q.height() * 0.11f
+        }
+
+        canvas.drawText(glyph, q.left + 20f, q.top + q.height() * 0.46f, glyphPaint)
+        canvas.drawText(weather.temp, q.left + q.width() * 0.45f, q.top + q.height() * 0.42f, tempPaint)
+        canvas.drawText(weather.condition, q.left + 20f, q.top + q.height() * 0.68f, condPaint)
+        canvas.drawText("H: ${weather.dailyHigh}  L: ${weather.dailyLow}", q.left + 20f, q.top + q.height() * 0.86f, rangePaint)
+    }
+
+    private fun drawBentoStepsQuadrant(
+        canvas: Canvas,
+        q: RectF,
+        steps: Int,
+        textColor: Int,
+        accentColor: Int
+    ) {
+        val ringCx = q.left + q.width() * 0.28f
+        val ringCy = q.centerY()
+        val ringRadius = q.height() * 0.32f
+
+        val bgRingPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.STROKE
+            strokeWidth = 10f
+            color = Color.parseColor("#26FFFFFF")
+        }
+        canvas.drawCircle(ringCx, ringCy, ringRadius, bgRingPaint)
+
+        val sweep = (360f * (steps.toFloat() / 10000f)).coerceIn(10f, 360f)
+        val fgRingPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.STROKE
+            strokeWidth = 10f
+            strokeCap = Paint.Cap.ROUND
+            color = accentColor
+        }
+        val ringRect = RectF(ringCx - ringRadius, ringCy - ringRadius, ringCx + ringRadius, ringCy + ringRadius)
+        canvas.drawArc(ringRect, -90f, sweep, false, fgRingPaint)
+
+        val shoePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            textSize = 20f
+            textAlign = Paint.Align.CENTER
+        }
+        canvas.drawText("👟", ringCx, ringCy + 7f, shoePaint)
+
+        val stepPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = textColor
+            textSize = q.height() * 0.26f
+            typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+        }
+        val labelPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.GRAY
+            textSize = q.height() * 0.11f
+            typeface = Typeface.MONOSPACE
+        }
+
+        val textLeft = q.left + q.width() * 0.54f
+        canvas.drawText("$steps", textLeft, q.top + q.height() * 0.48f, stepPaint)
+        canvas.drawText("STEPS / 10K", textLeft, q.top + q.height() * 0.70f, labelPaint)
+    }
+
+    private fun drawBentoDiagnosticsQuadrant(
+        context: Context,
+        canvas: Canvas,
+        q: RectF,
+        textColor: Int,
+        accentColor: Int
+    ) {
+        val (batteryPct, _) = SystemStatsHelper.getBatteryStats(context)
+        val (_, _, ramPct) = SystemStatsHelper.getRamStats(context)
+        val (freeGb, _) = SystemStatsHelper.getStorageStats()
+
+        val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = textColor
+            textSize = q.height() * 0.14f
+            typeface = Typeface.DEFAULT_BOLD
+        }
+        val barBgPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.parseColor("#26FFFFFF")
+            strokeWidth = 6f
+            strokeCap = Paint.Cap.ROUND
+        }
+        val barFgPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = accentColor
+            strokeWidth = 6f
+            strokeCap = Paint.Cap.ROUND
+        }
+
+        // Row 1: Battery
+        val r1Y = q.top + q.height() * 0.28f
+        canvas.drawText("⚡ $batteryPct%", q.left + 20f, r1Y, textPaint)
+        val r1BarLeft = q.left + q.width() * 0.50f
+        val r1BarRight = q.right - 20f
+        val r1BarW = r1BarRight - r1BarLeft
+        canvas.drawLine(r1BarLeft, r1Y - 6f, r1BarRight, r1Y - 6f, barBgPaint)
+        canvas.drawLine(r1BarLeft, r1Y - 6f, r1BarLeft + (r1BarW * (batteryPct / 100f)), r1Y - 6f, barFgPaint)
+
+        // Row 2: RAM
+        val r2Y = q.top + q.height() * 0.58f
+        canvas.drawText("🧠 $ramPct%", q.left + 20f, r2Y, textPaint)
+        canvas.drawLine(r1BarLeft, r2Y - 6f, r1BarRight, r2Y - 6f, barBgPaint)
+        canvas.drawLine(r1BarLeft, r2Y - 6f, r1BarLeft + (r1BarW * (ramPct / 100f)), r2Y - 6f, barFgPaint)
+
+        // Row 3: Storage
+        val r3Y = q.top + q.height() * 0.86f
+        canvas.drawText("💾 Free: ${freeGb} GB", q.left + 20f, r3Y, textPaint)
     }
 
     // --- Custom Icon Rendering ---
@@ -682,9 +1133,112 @@ object WidgetRenderer {
             badgeRightX -= (badgeWidth + spacing)
         }
         if (config.showWeather) {
-            drawWeatherBadge(canvas, badgeRightX - badgeWidth, badgeY, accentColor, config.weatherTemp)
+            drawWeatherBadge(context, canvas, badgeRightX - badgeWidth, badgeY, accentColor, config.weatherTemp)
             badgeRightX -= (badgeWidth + spacing)
         }
+        if (config.showSteps) {
+            drawStepsBadge(context, canvas, badgeRightX - badgeWidth, badgeY, accentColor)
+            badgeRightX -= (badgeWidth + spacing)
+        }
+    }
+
+    private fun drawStepsBadge(context: Context, canvas: Canvas, x: Float, y: Float, accentColor: Int) {
+        val steps = StepCounterHelper.getTodaySteps(context)
+        val formattedSteps = if (steps >= 1000) String.format(Locale.getDefault(), "%.1fk", steps / 1000f) else "$steps"
+        val badgePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.parseColor("#33FFFFFF")
+            style = Paint.Style.FILL
+        }
+        val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.WHITE
+            textSize = 21f
+            typeface = Typeface.DEFAULT_BOLD
+        }
+        val rect = RectF(x, y, x + 140f, y + 44f)
+        canvas.drawRoundRect(rect, 22f, 22f, badgePaint)
+        canvas.drawText("👟 $formattedSteps", x + 12f, y + 30f, textPaint)
+    }
+
+    private fun drawNothingDotMatrixClock(
+        canvas: Canvas,
+        w: Int,
+        h: Int,
+        timeString: String,
+        dateString: String,
+        textColor: Int,
+        accentColor: Int
+    ) {
+        val timePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = textColor
+            textSize = h * 0.46f
+            typeface = Typeface.MONOSPACE
+            letterSpacing = 0.08f
+        }
+        val datePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.LTGRAY
+            textSize = h * 0.11f
+            typeface = Typeface.MONOSPACE
+            letterSpacing = 0.06f
+        }
+        val redTagPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = accentColor
+            style = Paint.Style.FILL
+        }
+
+        canvas.drawText(timeString, 40f, h * 0.52f, timePaint)
+
+        val tagY = h * 0.65f
+        canvas.drawCircle(50f, tagY + 12f, 8f, redTagPaint)
+        canvas.drawText(dateString.uppercase(), 68f, tagY + 20f, datePaint)
+    }
+
+    private fun drawFrostedGlassClock(
+        canvas: Canvas,
+        w: Int,
+        h: Int,
+        timeString: String,
+        dateString: String,
+        textColor: Int,
+        accentColor: Int
+    ) {
+        val timePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = textColor
+            textSize = h * 0.48f
+            typeface = Typeface.create(Typeface.SANS_SERIF, Typeface.BOLD)
+            setShadowLayer(16f, 0f, 4f, Color.parseColor("#40000000"))
+        }
+        val datePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.parseColor("#DDFFFFFF")
+            textSize = h * 0.12f
+            typeface = Typeface.DEFAULT_BOLD
+        }
+        canvas.drawText(timeString, 44f, h * 0.54f, timePaint)
+        canvas.drawText(dateString, 48f, h * 0.77f, datePaint)
+
+        val borderPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            style = Paint.Style.STROKE
+            strokeWidth = 3f
+            color = Color.parseColor("#4DFFFFFF")
+        }
+        canvas.drawRoundRect(RectF(0f, 0f, w.toFloat(), h.toFloat()), 32f, 32f, borderPaint)
+    }
+
+    private fun drawWeatherBadge(context: Context, canvas: Canvas, x: Float, y: Float, accentColor: Int, fallbackTemp: String) {
+        val weather = WeatherHelper.getCachedWeather(context)
+        val glyph = WeatherHelper.mapWmoCodeToGlyph(weather.wmoCode)
+        val displayTemp = if (weather.temp.isNotBlank()) weather.temp else fallbackTemp
+        val badgePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.parseColor("#33FFFFFF")
+            style = Paint.Style.FILL
+        }
+        val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.WHITE
+            textSize = 21f
+            typeface = Typeface.DEFAULT_BOLD
+        }
+        val rect = RectF(x, y, x + 140f, y + 44f)
+        canvas.drawRoundRect(rect, 22f, 22f, badgePaint)
+        canvas.drawText("$glyph $displayTemp", x + 14f, y + 30f, textPaint)
     }
 
     private fun drawBatteryBadge(context: Context, canvas: Canvas, x: Float, y: Float, accentColor: Int) {

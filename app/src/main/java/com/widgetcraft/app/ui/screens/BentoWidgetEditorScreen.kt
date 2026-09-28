@@ -15,6 +15,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AddToHomeScreen
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.TouchApp
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -26,51 +27,47 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.widgetcraft.app.data.ClockStyle
-import com.widgetcraft.app.data.ClockWidgetConfig
+import com.widgetcraft.app.data.BentoStyle
+import com.widgetcraft.app.data.BentoWidgetConfig
 import com.widgetcraft.app.data.WidgetStorage
-import com.widgetcraft.app.widget.ClockWidgetProvider
+import com.widgetcraft.app.widget.BentoWidgetProvider
 import com.widgetcraft.app.widget.WidgetPinManager
 import com.widgetcraft.app.widget.WidgetRenderer
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ClockWidgetEditorScreen(
+fun BentoWidgetEditorScreen(
     storage: WidgetStorage,
     presetId: String?,
     onNavigateBack: () -> Unit
 ) {
     val context = LocalContext.current
     val existingConfig = remember {
-        presetId?.let { storage.getClockConfig(it) } ?: ClockWidgetConfig()
+        presetId?.let { storage.getBentoConfig(it) } ?: BentoWidgetConfig()
     }
 
     var name by remember { mutableStateOf(existingConfig.name) }
     var selectedStyle by remember { mutableStateOf(existingConfig.style) }
-    var is24Hour by remember { mutableStateOf(existingConfig.is24Hour) }
-    var showDate by remember { mutableStateOf(existingConfig.showDate) }
-    var showBattery by remember { mutableStateOf(existingConfig.showBattery) }
-    var showStorage by remember { mutableStateOf(existingConfig.showStorage) }
-    var showRam by remember { mutableStateOf(existingConfig.showRam) }
+    var showClock by remember { mutableStateOf(existingConfig.showClock) }
     var showWeather by remember { mutableStateOf(existingConfig.showWeather) }
+    var showBattery by remember { mutableStateOf(existingConfig.showBattery) }
+    var showRam by remember { mutableStateOf(existingConfig.showRam) }
     var showSteps by remember { mutableStateOf(existingConfig.showSteps) }
-    var textColor by remember { mutableStateOf(existingConfig.textColorHex) }
+    var showMusicSnippet by remember { mutableStateOf(existingConfig.showMusicSnippet) }
     var accentColor by remember { mutableStateOf(existingConfig.accentColorHex) }
     var backgroundColor by remember { mutableStateOf(existingConfig.backgroundColorHex) }
     var cornerRadius by remember { mutableFloatStateOf(existingConfig.cornerRadiusDp) }
 
-    val currentConfig = remember(name, selectedStyle, is24Hour, showDate, showBattery, showStorage, showRam, showWeather, showSteps, textColor, accentColor, backgroundColor, cornerRadius) {
+    val currentConfig = remember(name, selectedStyle, showClock, showWeather, showBattery, showRam, showSteps, showMusicSnippet, accentColor, backgroundColor, cornerRadius) {
         existingConfig.copy(
             name = name,
             style = selectedStyle,
-            is24Hour = is24Hour,
-            showDate = showDate,
-            showBattery = showBattery,
-            showStorage = showStorage,
-            showRam = showRam,
+            showClock = showClock,
             showWeather = showWeather,
+            showBattery = showBattery,
+            showRam = showRam,
             showSteps = showSteps,
-            textColorHex = textColor,
+            showMusicSnippet = showMusicSnippet,
             accentColorHex = accentColor,
             backgroundColorHex = backgroundColor,
             cornerRadiusDp = cornerRadius
@@ -78,14 +75,19 @@ fun ClockWidgetEditorScreen(
     }
 
     fun saveAndSync() {
-        storage.saveClockConfig(currentConfig)
-        ClockWidgetProvider.refreshAllWidgets(context)
+        storage.saveBentoConfig(currentConfig)
+        val appWidgetManager = android.appwidget.AppWidgetManager.getInstance(context)
+        val provider = android.content.ComponentName(context, BentoWidgetProvider::class.java)
+        val ids = appWidgetManager.getAppWidgetIds(provider)
+        for (id in ids) {
+            BentoWidgetProvider.updateWidget(context, appWidgetManager, id, storage)
+        }
     }
 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(if (presetId == null) "New Clock Widget" else "Edit Clock Widget") },
+                title = { Text(if (presetId == null) "New Bento Dashboard" else "Edit Bento Dashboard") },
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
                         Icon(Icons.Default.ArrowBack, contentDescription = "Back")
@@ -117,20 +119,20 @@ fun ClockWidgetEditorScreen(
         ) {
             // Live Interactive Preview
             val previewBitmap = remember(currentConfig) {
-                WidgetRenderer.renderClockWidget(context, currentConfig, targetWidth = 700, targetHeight = 350)
+                WidgetRenderer.renderBentoWidget(context, currentConfig, targetWidth = 900, targetHeight = 480)
             }
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(200.dp)
+                    .height(210.dp)
                     .clip(RoundedCornerShape(16.dp))
                     .background(MaterialTheme.colorScheme.surfaceVariant),
                 contentAlignment = Alignment.Center
             ) {
                 Image(
                     bitmap = previewBitmap.asImageBitmap(),
-                    contentDescription = "Clock Preview",
-                    modifier = Modifier.fillMaxWidth().height(180.dp).padding(12.dp)
+                    contentDescription = "Bento Preview",
+                    modifier = Modifier.fillMaxWidth().height(190.dp).padding(8.dp)
                 )
             }
 
@@ -138,11 +140,9 @@ fun ClockWidgetEditorScreen(
             Button(
                 onClick = {
                     saveAndSync()
-                    WidgetPinManager.requestPinWidget(
+                    WidgetPinManager.pinBentoWidget(
                         context = context,
-                        providerClass = ClockWidgetProvider::class.java,
                         presetId = currentConfig.id,
-                        widgetType = "CLOCK",
                         previewBitmap = previewBitmap
                     )
                 },
@@ -154,7 +154,32 @@ fun ClockWidgetEditorScreen(
                 Text("Save & Add to Home Screen")
             }
 
-            // Widget Name
+            // Hotspot Explainer Card
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+            ) {
+                Row(
+                    modifier = Modifier.padding(14.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        Icons.Default.TouchApp,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(28.dp)
+                    )
+                    Spacer(Modifier.width(10.dp))
+                    Text(
+                        "Bento widgets feature 4 independent tap hotspots: Clock opens Alarm, Weather opens Weather info, Steps opens Health, and Battery opens System stats.",
+                        fontSize = 12.sp,
+                        lineHeight = 16.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+
+            // Title field
             OutlinedTextField(
                 value = name,
                 onValueChange = { name = it },
@@ -162,12 +187,12 @@ fun ClockWidgetEditorScreen(
                 modifier = Modifier.fillMaxWidth()
             )
 
-            // Style Picker
+            // Bento Style Picker
             Column {
-                Text("Typography & Clock Style", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                Text("Bento Layout & Theme", fontWeight = FontWeight.Bold, fontSize = 16.sp)
                 Spacer(Modifier.height(8.dp))
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    items(ClockStyle.values()) { style ->
+                    items(BentoStyle.values()) { style ->
                         FilterChip(
                             selected = selectedStyle == style,
                             onClick = { selectedStyle = style },
@@ -177,7 +202,7 @@ fun ClockWidgetEditorScreen(
                 }
             }
 
-            // Indicators & Switches
+            // Quadrant & Module Toggles
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
@@ -188,8 +213,8 @@ fun ClockWidgetEditorScreen(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text("24-Hour Time Format")
-                        Switch(checked = is24Hour, onCheckedChange = { is24Hour = it })
+                        Text("Show Big Clock Quadrant")
+                        Switch(checked = showClock, onCheckedChange = { showClock = it })
                     }
 
                     Divider()
@@ -199,51 +224,7 @@ fun ClockWidgetEditorScreen(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text("Show Date Line")
-                        Switch(checked = showDate, onCheckedChange = { showDate = it })
-                    }
-
-                    Divider()
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text("Show Live Battery Gauge")
-                        Switch(checked = showBattery, onCheckedChange = { showBattery = it })
-                    }
-
-                    Divider()
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text("Show Available Storage Meter")
-                        Switch(checked = showStorage, onCheckedChange = { showStorage = it })
-                    }
-
-                    Divider()
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text("Show Real-time RAM Gauge")
-                        Switch(checked = showRam, onCheckedChange = { showRam = it })
-                    }
-
-                    Divider()
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text("Show Ambient Weather")
+                        Text("Show Live Weather & Forecast")
                         Switch(checked = showWeather, onCheckedChange = { showWeather = it })
                     }
 
@@ -254,8 +235,19 @@ fun ClockWidgetEditorScreen(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text("Show Hardware Step Counter")
+                        Text("Show Hardware Step Counter (Pedometer)")
                         Switch(checked = showSteps, onCheckedChange = { showSteps = it })
+                    }
+
+                    Divider()
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("Show Battery & RAM Metrics")
+                        Switch(checked = showBattery, onCheckedChange = { showBattery = it; showRam = it })
                     }
                 }
             }
@@ -266,18 +258,18 @@ fun ClockWidgetEditorScreen(
                 Slider(
                     value = cornerRadius,
                     onValueChange = { cornerRadius = it },
-                    valueRange = 0f..48f
+                    valueRange = 8f..48f
                 )
             }
 
-            // Accent Color Palette
+            // Accent Highlight Color
             Column {
                 Text("Accent Highlight Color", fontWeight = FontWeight.Bold)
                 Spacer(Modifier.height(8.dp))
-                val accents = listOf("#D0BCFF", "#06B6D4", "#F43F5E", "#10B981", "#EAB308", "#FF8A65", "#FFFFFF")
+                val accents = listOf("#D71921", "#D0BCFF", "#06B6D4", "#F43F5E", "#10B981", "#EAB308", "#FFFFFF")
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     accents.forEach { hex ->
-                        val parsed = try { Color(android.graphics.Color.parseColor(hex)) } catch (e: Exception) { Color.Cyan }
+                        val parsed = try { Color(android.graphics.Color.parseColor(hex)) } catch (e: Exception) { Color.Red }
                         Box(
                             modifier = Modifier
                                 .size(36.dp)

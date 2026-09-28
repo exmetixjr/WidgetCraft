@@ -26,6 +26,8 @@ class WidgetPinReceiver : BroadcastReceiver() {
                 "CLOCK" -> ClockWidgetProvider.updateWidget(context, appWidgetManager, appWidgetId, storage)
                 "NOTE" -> NoteWidgetProvider.updateWidget(context, appWidgetManager, appWidgetId, storage)
                 "ICON" -> IconWidgetProvider.updateWidget(context, appWidgetManager, appWidgetId, storage)
+                "MUSIC" -> MusicWidgetProvider.updateWidget(context, appWidgetManager, appWidgetId, storage)
+                "BENTO" -> BentoWidgetProvider.updateWidget(context, appWidgetManager, appWidgetId, storage)
                 else -> ImageWidgetProvider.updateWidget(context, appWidgetManager, appWidgetId, storage)
             }
             Log.d("WidgetCraft", "Successfully pinned widget $appWidgetId to preset $presetId ($widgetType)")
