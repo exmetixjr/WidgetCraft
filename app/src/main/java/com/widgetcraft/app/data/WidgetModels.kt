@@ -61,7 +61,9 @@ data class ImageWidgetConfig(
     var captionSizeSp: Float = 14f,
     var showDateTag: Boolean = false,
     var tapAction: TapActionType = TapActionType.NONE,
-    var tapActionTarget: String = ""
+    var tapActionTarget: String = "",
+    var autoSlideMinutes: Int = 0,
+    var enableTouchSlide: Boolean = true
 )
 
 enum class ClockStyle {
@@ -75,10 +77,27 @@ enum class ClockStyle {
     FROSTED_GLASS
 }
 
+enum class ClockBackgroundMode {
+    SOLID_CARD,
+    TRANSPARENT,
+    FROSTED_GLASS,
+    OUTLINE_ONLY
+}
+
+enum class IndicatorPlacement {
+    BELOW_CLOCK,
+    ABOVE_CLOCK,
+    INLINE,
+    HIDDEN
+}
+
 data class ClockWidgetConfig(
     val id: String = java.util.UUID.randomUUID().toString(),
     var name: String = "My Clock Widget",
     var style: ClockStyle = ClockStyle.BOLD_EDITORIAL,
+    var backgroundMode: ClockBackgroundMode = ClockBackgroundMode.TRANSPARENT,
+    var backgroundOpacity: Float = 0.0f,
+    var indicatorPlacement: IndicatorPlacement = IndicatorPlacement.BELOW_CLOCK,
     var is24Hour: Boolean = false,
     var showDate: Boolean = true,
     var showBattery: Boolean = true,

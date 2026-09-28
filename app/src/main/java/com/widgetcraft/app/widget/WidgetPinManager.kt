@@ -30,6 +30,9 @@ object WidgetPinManager {
         val provider = ComponentName(context, providerClass)
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O && appWidgetManager.isRequestPinAppWidgetSupported) {
+            val storage = WidgetStorage(context)
+            storage.setPendingPin(presetId, widgetType)
+
             val callbackIntent = Intent(context, WidgetPinReceiver::class.java).apply {
                 action = WidgetPinReceiver.ACTION_WIDGET_PINNED
                 putExtra(EXTRA_PRESET_ID, presetId)

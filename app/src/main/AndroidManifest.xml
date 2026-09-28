@@ -138,6 +138,15 @@
             </intent-filter>
         </receiver>
 
+        <!-- Fast Background Note Checklist Toggle Receiver -->
+        <receiver
+            android:name=".widget.NoteChecklistReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.widgetcraft.app.ACTION_TOGGLE_CHECKLIST" />
+            </intent-filter>
+        </receiver>
+
         <!-- Media Session & Notification Listener Service -->
         <service
             android:name=".widget.MediaWidgetListenerService"

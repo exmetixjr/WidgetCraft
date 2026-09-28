@@ -90,6 +90,25 @@ class WidgetStorage(private val context: Context) {
         prefs.edit().putString("widget_instance_bindings", gson.toJson(list)).apply()
     }
 
+    fun setPendingPin(presetId: String, widgetType: String) {
+        prefs.edit()
+            .putString("pending_pin_preset_id", presetId)
+            .putString("pending_pin_widget_type", widgetType)
+            .putLong("pending_pin_timestamp", System.currentTimeMillis())
+            .apply()
+    }
+
+    fun consumePendingPin(widgetType: String): String? {
+        val savedType = prefs.getString("pending_pin_widget_type", null)
+        val savedPreset = prefs.getString("pending_pin_preset_id", null)
+        val timestamp = prefs.getLong("pending_pin_timestamp", 0L)
+        if (savedType == widgetType && savedPreset != null && (System.currentTimeMillis() - timestamp) < 120_000L) {
+            prefs.edit().remove("pending_pin_preset_id").remove("pending_pin_widget_type").apply()
+            return savedPreset
+        }
+        return null
+    }
+
     // --- Image Widgets Presets ---
 
     fun getAllImageConfigs(): List<ImageWidgetConfig> {
@@ -112,7 +131,21 @@ class WidgetStorage(private val context: Context) {
             val config = getImageConfig(binding.presetId)
             if (config != null) return config
         }
-        return getAllImageConfigs().firstOrNull() ?: ImageWidgetConfig()
+        val pending = consumePendingPin("IMAGE")
+        if (pending != null) {
+            bindWidgetIdToPreset(appWidgetId, pending, "IMAGE")
+            getImageConfig(pending)?.let { return it }
+        }
+        val all = getAllImageConfigs()
+        if (all.isNotEmpty()) {
+            val preset = all.first()
+            bindWidgetIdToPreset(appWidgetId, preset.id, "IMAGE")
+            return preset
+        }
+        val newDefault = ImageWidgetConfig()
+        saveImageConfig(newDefault)
+        bindWidgetIdToPreset(appWidgetId, newDefault.id, "IMAGE")
+        return newDefault
     }
 
     fun saveImageConfig(config: ImageWidgetConfig) {
@@ -154,7 +187,21 @@ class WidgetStorage(private val context: Context) {
             val config = getClockConfig(binding.presetId)
             if (config != null) return config
         }
-        return getAllClockConfigs().firstOrNull() ?: ClockWidgetConfig()
+        val pending = consumePendingPin("CLOCK")
+        if (pending != null) {
+            bindWidgetIdToPreset(appWidgetId, pending, "CLOCK")
+            getClockConfig(pending)?.let { return it }
+        }
+        val all = getAllClockConfigs()
+        if (all.isNotEmpty()) {
+            val preset = all.first()
+            bindWidgetIdToPreset(appWidgetId, preset.id, "CLOCK")
+            return preset
+        }
+        val newDefault = ClockWidgetConfig()
+        saveClockConfig(newDefault)
+        bindWidgetIdToPreset(appWidgetId, newDefault.id, "CLOCK")
+        return newDefault
     }
 
     fun saveClockConfig(config: ClockWidgetConfig) {
@@ -196,7 +243,21 @@ class WidgetStorage(private val context: Context) {
             val config = getNoteConfig(binding.presetId)
             if (config != null) return config
         }
-        return getAllNoteConfigs().firstOrNull() ?: NoteWidgetConfig()
+        val pending = consumePendingPin("NOTE")
+        if (pending != null) {
+            bindWidgetIdToPreset(appWidgetId, pending, "NOTE")
+            getNoteConfig(pending)?.let { return it }
+        }
+        val all = getAllNoteConfigs()
+        if (all.isNotEmpty()) {
+            val preset = all.first()
+            bindWidgetIdToPreset(appWidgetId, preset.id, "NOTE")
+            return preset
+        }
+        val newDefault = NoteWidgetConfig()
+        saveNoteConfig(newDefault)
+        bindWidgetIdToPreset(appWidgetId, newDefault.id, "NOTE")
+        return newDefault
     }
 
     fun saveNoteConfig(config: NoteWidgetConfig) {
@@ -238,7 +299,23 @@ class WidgetStorage(private val context: Context) {
             val config = getIconConfig(binding.presetId)
             if (config != null) return config
         }
-        return getAllIconConfigs().firstOrNull() ?: IconWidgetConfig()
+        val pending = consumePendingPin("ICON")
+        if (pending != null) {
+            bindWidgetIdToPreset(appWidgetId, pending, "ICON")
+            getIconConfig(pending)?.let { return it }
+        }
+        val all = getAllIconConfigs()
+        if (all.isNotEmpty()) {
+            val preset = all.first()
+            val distinctCopy = preset.copy(id = UUID.randomUUID().toString())
+            saveIconConfig(distinctCopy)
+            bindWidgetIdToPreset(appWidgetId, distinctCopy.id, "ICON")
+            return distinctCopy
+        }
+        val newDefault = IconWidgetConfig()
+        saveIconConfig(newDefault)
+        bindWidgetIdToPreset(appWidgetId, newDefault.id, "ICON")
+        return newDefault
     }
 
     fun saveIconConfig(config: IconWidgetConfig) {
@@ -280,7 +357,21 @@ class WidgetStorage(private val context: Context) {
             val config = getMusicConfig(binding.presetId)
             if (config != null) return config
         }
-        return getAllMusicConfigs().firstOrNull() ?: MusicWidgetConfig()
+        val pending = consumePendingPin("MUSIC")
+        if (pending != null) {
+            bindWidgetIdToPreset(appWidgetId, pending, "MUSIC")
+            getMusicConfig(pending)?.let { return it }
+        }
+        val all = getAllMusicConfigs()
+        if (all.isNotEmpty()) {
+            val preset = all.first()
+            bindWidgetIdToPreset(appWidgetId, preset.id, "MUSIC")
+            return preset
+        }
+        val newDefault = MusicWidgetConfig()
+        saveMusicConfig(newDefault)
+        bindWidgetIdToPreset(appWidgetId, newDefault.id, "MUSIC")
+        return newDefault
     }
 
     fun saveMusicConfig(config: MusicWidgetConfig) {
@@ -322,7 +413,21 @@ class WidgetStorage(private val context: Context) {
             val config = getBentoConfig(binding.presetId)
             if (config != null) return config
         }
-        return getAllBentoConfigs().firstOrNull() ?: BentoWidgetConfig()
+        val pending = consumePendingPin("BENTO")
+        if (pending != null) {
+            bindWidgetIdToPreset(appWidgetId, pending, "BENTO")
+            getBentoConfig(pending)?.let { return it }
+        }
+        val all = getAllBentoConfigs()
+        if (all.isNotEmpty()) {
+            val preset = all.first()
+            bindWidgetIdToPreset(appWidgetId, preset.id, "BENTO")
+            return preset
+        }
+        val newDefault = BentoWidgetConfig()
+        saveBentoConfig(newDefault)
+        bindWidgetIdToPreset(appWidgetId, newDefault.id, "BENTO")
+        return newDefault
     }
 
     fun saveBentoConfig(config: BentoWidgetConfig) {

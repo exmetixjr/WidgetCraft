@@ -28,6 +28,7 @@ class ImageWidgetProvider : AppWidgetProvider() {
         val storage = WidgetStorage(context)
         for (id in appWidgetIds) {
             storage.removeBinding(id)
+            cancelAutoSlide(context, id)
         }
     }
 
@@ -63,65 +64,113 @@ class ImageWidgetProvider : AppWidgetProvider() {
             val bitmap = WidgetRenderer.renderImageWidget(context, config)
             views.setImageViewBitmap(R.id.widget_image_view, bitmap)
 
-            // Setup Tap action
-            val pendingIntent = when (config.tapAction) {
-                TapActionType.CYCLE_IMAGES -> {
-                    val intent = Intent(context, ImageWidgetProvider::class.java).apply {
-                        action = ACTION_CYCLE_IMAGE
-                        putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
-                    }
-                    PendingIntent.getBroadcast(
-                        context,
-                        appWidgetId,
-                        intent,
-                        PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE
-                    )
+            // Setup Tap action (if multiple images and enableTouchSlide, tap cycles by default)
+            val shouldCycleOnTap = (config.tapAction == TapActionType.CYCLE_IMAGES) ||
+                    (config.enableTouchSlide && config.imageUris.size > 1 && config.tapAction == TapActionType.NONE)
+
+            val pendingIntent = if (shouldCycleOnTap) {
+                val intent = Intent(context, ImageWidgetProvider::class.java).apply {
+                    action = ACTION_CYCLE_IMAGE
+                    putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
                 }
-                TapActionType.OPEN_URL -> {
-                    val url = if (config.tapActionTarget.startsWith("http")) config.tapActionTarget else "https://${config.tapActionTarget}"
-                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url)).apply {
-                        flags = Intent.FLAG_ACTIVITY_NEW_TASK
-                    }
-                    PendingIntent.getActivity(
-                        context,
-                        appWidgetId,
-                        intent,
-                        PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-                    )
-                }
-                TapActionType.OPEN_APP -> {
-                    val launchIntent = context.packageManager.getLaunchIntentForPackage(config.tapActionTarget)
-                    if (launchIntent != null) {
-                        launchIntent.flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                PendingIntent.getBroadcast(
+                    context,
+                    appWidgetId,
+                    intent,
+                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE
+                )
+            } else {
+                when (config.tapAction) {
+                    TapActionType.OPEN_URL -> {
+                        val url = if (config.tapActionTarget.startsWith("http")) config.tapActionTarget else "https://${config.tapActionTarget}"
+                        val intent = Intent(Intent.ACTION_VIEW, Uri.parse(url)).apply {
+                            flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                        }
                         PendingIntent.getActivity(
                             context,
                             appWidgetId,
-                            launchIntent,
+                            intent,
                             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
                         )
-                    } else {
+                    }
+                    TapActionType.OPEN_APP -> {
+                        val launchIntent = context.packageManager.getLaunchIntentForPackage(config.tapActionTarget)
+                        if (launchIntent != null) {
+                            launchIntent.flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                            PendingIntent.getActivity(
+                                context,
+                                appWidgetId,
+                                launchIntent,
+                                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+                            )
+                        } else {
+                            getDefaultAppIntent(context, appWidgetId, config.id)
+                        }
+                    }
+                    TapActionType.OPEN_GALLERY -> {
+                        val galleryIntent = Intent(Intent.ACTION_VIEW).apply {
+                            type = "image/*"
+                            flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                        }
+                        PendingIntent.getActivity(
+                            context,
+                            appWidgetId,
+                            galleryIntent,
+                            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+                        )
+                    }
+                    else -> {
                         getDefaultAppIntent(context, appWidgetId, config.id)
                     }
-                }
-                TapActionType.OPEN_GALLERY -> {
-                    val galleryIntent = Intent(Intent.ACTION_VIEW).apply {
-                        type = "image/*"
-                        flags = Intent.FLAG_ACTIVITY_NEW_TASK
-                    }
-                    PendingIntent.getActivity(
-                        context,
-                        appWidgetId,
-                        galleryIntent,
-                        PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-                    )
-                }
-                TapActionType.NONE -> {
-                    getDefaultAppIntent(context, appWidgetId, config.id)
                 }
             }
 
             views.setOnClickPendingIntent(R.id.widget_image_container, pendingIntent)
             appWidgetManager.updateAppWidget(appWidgetId, views)
+
+            scheduleAutoSlide(context, appWidgetId, config)
+        }
+
+        private fun scheduleAutoSlide(context: Context, appWidgetId: Int, config: ImageWidgetConfig) {
+            val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as? android.app.AlarmManager ?: return
+            val intent = Intent(context, ImageWidgetProvider::class.java).apply {
+                action = ACTION_CYCLE_IMAGE
+                putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
+            }
+            val pi = PendingIntent.getBroadcast(
+                context,
+                appWidgetId + 80000,
+                intent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE
+            )
+
+            if (config.autoSlideMinutes > 0 && config.imageUris.size > 1) {
+                val intervalMs = config.autoSlideMinutes * 60 * 1000L
+                val triggerAt = android.os.SystemClock.elapsedRealtime() + intervalMs
+                alarmManager.setInexactRepeating(
+                    android.app.AlarmManager.ELAPSED_REALTIME,
+                    triggerAt,
+                    intervalMs,
+                    pi
+                )
+            } else {
+                alarmManager.cancel(pi)
+            }
+        }
+
+        private fun cancelAutoSlide(context: Context, appWidgetId: Int) {
+            val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as? android.app.AlarmManager ?: return
+            val intent = Intent(context, ImageWidgetProvider::class.java).apply {
+                action = ACTION_CYCLE_IMAGE
+                putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
+            }
+            val pi = PendingIntent.getBroadcast(
+                context,
+                appWidgetId + 80000,
+                intent,
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE
+            )
+            alarmManager.cancel(pi)
         }
 
         private fun getDefaultAppIntent(context: Context, appWidgetId: Int, presetId: String): PendingIntent {

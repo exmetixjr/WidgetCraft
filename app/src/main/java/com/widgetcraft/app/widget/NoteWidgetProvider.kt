@@ -55,7 +55,32 @@ class NoteWidgetProvider : AppWidgetProvider() {
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE
             )
 
+            views.setOnClickPendingIntent(R.id.note_header_target, pendingIntent)
             views.setOnClickPendingIntent(R.id.widget_note_container, pendingIntent)
+
+            // Setup Interactive Checklist row touch targets
+            val checkTargetIds = intArrayOf(
+                R.id.note_check_target_0,
+                R.id.note_check_target_1,
+                R.id.note_check_target_2,
+                R.id.note_check_target_3,
+                R.id.note_check_target_4
+            )
+            for (idx in checkTargetIds.indices) {
+                val toggleIntent = Intent(context, NoteChecklistReceiver::class.java).apply {
+                    action = NoteChecklistReceiver.ACTION_TOGGLE_CHECKLIST
+                    putExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, appWidgetId)
+                    putExtra(NoteChecklistReceiver.EXTRA_ITEM_INDEX, idx)
+                }
+                val togglePending = PendingIntent.getBroadcast(
+                    context,
+                    appWidgetId * 100 + idx,
+                    toggleIntent,
+                    PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_MUTABLE
+                )
+                views.setOnClickPendingIntent(checkTargetIds[idx], togglePending)
+            }
+
             appWidgetManager.updateAppWidget(appWidgetId, views)
         }
 

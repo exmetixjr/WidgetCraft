@@ -26,8 +26,10 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.widgetcraft.app.data.ClockBackgroundMode
 import com.widgetcraft.app.data.ClockStyle
 import com.widgetcraft.app.data.ClockWidgetConfig
+import com.widgetcraft.app.data.IndicatorPlacement
 import com.widgetcraft.app.data.WidgetStorage
 import com.widgetcraft.app.widget.ClockWidgetProvider
 import com.widgetcraft.app.widget.WidgetPinManager
@@ -47,6 +49,9 @@ fun ClockWidgetEditorScreen(
 
     var name by remember { mutableStateOf(existingConfig.name) }
     var selectedStyle by remember { mutableStateOf(existingConfig.style) }
+    var selectedBgMode by remember { mutableStateOf(existingConfig.backgroundMode) }
+    var backgroundOpacity by remember { mutableFloatStateOf(existingConfig.backgroundOpacity) }
+    var selectedIndicatorPlacement by remember { mutableStateOf(existingConfig.indicatorPlacement) }
     var is24Hour by remember { mutableStateOf(existingConfig.is24Hour) }
     var showDate by remember { mutableStateOf(existingConfig.showDate) }
     var showBattery by remember { mutableStateOf(existingConfig.showBattery) }
@@ -59,10 +64,13 @@ fun ClockWidgetEditorScreen(
     var backgroundColor by remember { mutableStateOf(existingConfig.backgroundColorHex) }
     var cornerRadius by remember { mutableFloatStateOf(existingConfig.cornerRadiusDp) }
 
-    val currentConfig = remember(name, selectedStyle, is24Hour, showDate, showBattery, showStorage, showRam, showWeather, showSteps, textColor, accentColor, backgroundColor, cornerRadius) {
+    val currentConfig = remember(name, selectedStyle, selectedBgMode, backgroundOpacity, selectedIndicatorPlacement, is24Hour, showDate, showBattery, showStorage, showRam, showWeather, showSteps, textColor, accentColor, backgroundColor, cornerRadius) {
         existingConfig.copy(
             name = name,
             style = selectedStyle,
+            backgroundMode = selectedBgMode,
+            backgroundOpacity = backgroundOpacity,
+            indicatorPlacement = selectedIndicatorPlacement,
             is24Hour = is24Hour,
             showDate = showDate,
             showBattery = showBattery,
@@ -172,6 +180,66 @@ fun ClockWidgetEditorScreen(
                             selected = selectedStyle == style,
                             onClick = { selectedStyle = style },
                             label = { Text(style.name.replace('_', ' ')) }
+                        )
+                    }
+                }
+            }
+
+            // Background Mode Picker
+            Column {
+                Text("Background Style", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                Spacer(Modifier.height(8.dp))
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    items(ClockBackgroundMode.values()) { mode ->
+                        FilterChip(
+                            selected = selectedBgMode == mode,
+                            onClick = { selectedBgMode = mode },
+                            label = {
+                                Text(
+                                    when (mode) {
+                                        ClockBackgroundMode.TRANSPARENT -> "Transparent (No BG)"
+                                        ClockBackgroundMode.SOLID_CARD -> "Solid Card"
+                                        ClockBackgroundMode.FROSTED_GLASS -> "Frosted Glass"
+                                        ClockBackgroundMode.OUTLINE_ONLY -> "Outline Only"
+                                    }
+                                )
+                            }
+                        )
+                    }
+                }
+            }
+
+            // Background Opacity Slider (if not fully transparent)
+            if (selectedBgMode != ClockBackgroundMode.TRANSPARENT) {
+                Column {
+                    Text("Background Opacity: ${(backgroundOpacity * 100).toInt()}%")
+                    Slider(
+                        value = backgroundOpacity,
+                        onValueChange = { backgroundOpacity = it },
+                        valueRange = 0f..1.0f
+                    )
+                }
+            }
+
+            // Indicator Placement Picker
+            Column {
+                Text("System Gauges & Indicators Position", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                Spacer(Modifier.height(8.dp))
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    items(IndicatorPlacement.values()) { placement ->
+                        FilterChip(
+                            selected = selectedIndicatorPlacement == placement,
+                            onClick = { selectedIndicatorPlacement = placement },
+                            label = {
+                                Text(
+                                    when (placement) {
+                                        IndicatorPlacement.BELOW_CLOCK -> "Below Clock"
+                                        IndicatorPlacement.ABOVE_CLOCK -> "Above Clock"
+                                        IndicatorPlacement.INLINE -> "Inline / Side"
+                                        IndicatorPlacement.HIDDEN -> "Hide All Gauges"
+                                    }
+                                )
+                            }
                         )
                     }
                 }

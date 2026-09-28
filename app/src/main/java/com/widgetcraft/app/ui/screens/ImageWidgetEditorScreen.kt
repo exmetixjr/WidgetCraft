@@ -59,6 +59,8 @@ fun ImageWidgetEditorScreen(
     var showDateTag by remember { mutableStateOf(existingConfig.showDateTag) }
     var tapAction by remember { mutableStateOf(existingConfig.tapAction) }
     var tapActionTarget by remember { mutableStateOf(existingConfig.tapActionTarget) }
+    var autoSlideMinutes by remember { mutableIntStateOf(existingConfig.autoSlideMinutes) }
+    var enableTouchSlide by remember { mutableStateOf(existingConfig.enableTouchSlide) }
 
     val photoPickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetMultipleContents()
@@ -69,7 +71,7 @@ fun ImageWidgetEditorScreen(
         }
     }
 
-    val currentConfig = remember(name, imageUris, selectedLayout, selectedShape, selectedFilter, selectedScaleType, cornerRadius, borderWidth, borderColor, backgroundColor, opacity, captionText, showDateTag, tapAction, tapActionTarget) {
+    val currentConfig = remember(name, imageUris, selectedLayout, selectedShape, selectedFilter, selectedScaleType, cornerRadius, borderWidth, borderColor, backgroundColor, opacity, captionText, showDateTag, tapAction, tapActionTarget, autoSlideMinutes, enableTouchSlide) {
         existingConfig.copy(
             name = name,
             imageUris = imageUris.toMutableList(),
@@ -85,7 +87,9 @@ fun ImageWidgetEditorScreen(
             captionText = captionText,
             showDateTag = showDateTag,
             tapAction = tapAction,
-            tapActionTarget = tapActionTarget
+            tapActionTarget = tapActionTarget,
+            autoSlideMinutes = autoSlideMinutes,
+            enableTouchSlide = enableTouchSlide
         )
     }
 
@@ -360,6 +364,38 @@ fun ImageWidgetEditorScreen(
                             onClick = { tapAction = action },
                             label = { Text(action.name.replace('_', ' ')) }
                         )
+                    }
+                }
+            }
+
+            // Photo Slideshow & Cycle Controls
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface)
+            ) {
+                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Text("Slideshow & Touch Navigation", fontWeight = FontWeight.Bold)
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text("Tap Widget to Slide Next Photo")
+                        Switch(checked = enableTouchSlide, onCheckedChange = { enableTouchSlide = it })
+                    }
+
+                    Spacer(Modifier.height(4.dp))
+                    Text("Auto-Slide Timer Interval", style = MaterialTheme.typography.labelMedium)
+                    val intervals = listOf(0 to "Off", 15 to "15 min", 60 to "1 hour", 360 to "6 hours", 1440 to "Daily")
+                    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        items(intervals) { (minutes, label) ->
+                            FilterChip(
+                                selected = autoSlideMinutes == minutes,
+                                onClick = { autoSlideMinutes = minutes },
+                                label = { Text(label) }
+                            )
+                        }
                     }
                 }
             }

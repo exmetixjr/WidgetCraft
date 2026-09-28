@@ -143,6 +143,26 @@ fun IconChangerScreen(
                 }
             }
 
+            // Explanation of Micro-Widget vs Shortcut
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f))
+            ) {
+                Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text("💡 Two Ways to Place Custom Icons:", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                    Text(
+                        "• Micro-Widget (1x1): Clean aesthetic icon with NO launcher shortcut badge or arrow overlay.",
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Text(
+                        "• Native Shortcut: Fast launcher shortcut, but Android 8+ may enforce a tiny badge in the corner depending on your launcher.",
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+
             // Quick Pin Micro-Widget Action
             Button(
                 onClick = {

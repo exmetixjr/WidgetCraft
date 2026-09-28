@@ -124,13 +124,45 @@ object WidgetRenderer {
         val output = Bitmap.createBitmap(targetWidth, targetHeight, Bitmap.Config.ARGB_8888)
         val canvas = Canvas(output)
 
-        val bgPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-            color = parseColor(config.backgroundColorHex, Color.parseColor("#1E1E1E"))
-        }
+        val isTransparent = config.backgroundMode == ClockBackgroundMode.TRANSPARENT || config.backgroundOpacity <= 0.02f
 
-        val cornerRadius = config.cornerRadiusDp * (targetWidth / 250f)
-        val rect = RectF(0f, 0f, targetWidth.toFloat(), targetHeight.toFloat())
-        canvas.drawRoundRect(rect, cornerRadius, cornerRadius, bgPaint)
+        if (!isTransparent) {
+            val cornerRadius = config.cornerRadiusDp * (targetWidth / 250f)
+            val rect = RectF(0f, 0f, targetWidth.toFloat(), targetHeight.toFloat())
+
+            when (config.backgroundMode) {
+                ClockBackgroundMode.SOLID_CARD -> {
+                    val bgPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                        color = parseColor(config.backgroundColorHex, Color.parseColor("#1E1E1E"))
+                        alpha = (config.backgroundOpacity.coerceIn(0f, 1f) * 255).toInt()
+                    }
+                    canvas.drawRoundRect(rect, cornerRadius, cornerRadius, bgPaint)
+                }
+                ClockBackgroundMode.FROSTED_GLASS -> {
+                    val bgPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                        color = Color.parseColor("#261E1E1E")
+                        alpha = (config.backgroundOpacity.coerceIn(0.1f, 1f) * 180).toInt()
+                    }
+                    canvas.drawRoundRect(rect, cornerRadius, cornerRadius, bgPaint)
+                    val borderPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                        style = Paint.Style.STROKE
+                        strokeWidth = 3f
+                        color = Color.parseColor("#4DFFFFFF")
+                    }
+                    canvas.drawRoundRect(rect, cornerRadius, cornerRadius, borderPaint)
+                }
+                ClockBackgroundMode.OUTLINE_ONLY -> {
+                    val borderPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                        style = Paint.Style.STROKE
+                        strokeWidth = 4f
+                        color = parseColor(config.accentColorHex, Color.parseColor("#D0BCFF"))
+                        alpha = (config.backgroundOpacity.coerceIn(0.2f, 1f) * 255).toInt()
+                    }
+                    canvas.drawRoundRect(rect, cornerRadius, cornerRadius, borderPaint)
+                }
+                ClockBackgroundMode.TRANSPARENT -> {}
+            }
+        }
 
         val textColor = parseColor(config.textColorHex, Color.WHITE)
         val accentColor = parseColor(config.accentColorHex, Color.parseColor("#D0BCFF"))
@@ -141,25 +173,30 @@ object WidgetRenderer {
         val amPmString = if (!config.is24Hour) SimpleDateFormat("a", Locale.getDefault()).format(now.time) else ""
         val dateString = SimpleDateFormat("EEEE, MMMM d", Locale.getDefault()).format(now.time)
 
+        val textShadow = isTransparent
+
         when (config.style) {
             ClockStyle.BOLD_EDITORIAL -> {
                 val timePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                     color = textColor
                     textSize = targetHeight * 0.44f
                     typeface = Typeface.create(Typeface.SERIF, Typeface.BOLD)
+                    if (textShadow) setShadowLayer(14f, 0f, 3f, Color.argb(200, 0, 0, 0))
                 }
                 val amPmPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                     color = accentColor
                     textSize = targetHeight * 0.16f
                     typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+                    if (textShadow) setShadowLayer(10f, 0f, 2f, Color.argb(180, 0, 0, 0))
                 }
                 val datePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                     color = Color.LTGRAY
                     textSize = targetHeight * 0.12f
                     typeface = Typeface.DEFAULT
+                    if (textShadow) setShadowLayer(8f, 0f, 2f, Color.argb(180, 0, 0, 0))
                 }
 
-                val timeY = targetHeight * 0.50f
+                val timeY = if (config.indicatorPlacement == IndicatorPlacement.ABOVE_CLOCK) targetHeight * 0.62f else targetHeight * 0.50f
                 canvas.drawText(timeString, 48f, timeY, timePaint)
                 if (amPmString.isNotEmpty()) {
                     val timeWidth = timePaint.measureText(timeString)
@@ -181,10 +218,12 @@ object WidgetRenderer {
                     color = textColor
                     textSize = targetHeight * 0.11f
                     typeface = Typeface.MONOSPACE
+                    if (textShadow) setShadowLayer(8f, 0f, 2f, Color.argb(180, 0, 0, 0))
                 }
-                canvas.drawText(timeString, 44f, targetHeight * 0.52f, timePaint)
+                val timeY = if (config.indicatorPlacement == IndicatorPlacement.ABOVE_CLOCK) targetHeight * 0.64f else targetHeight * 0.52f
+                canvas.drawText(timeString, 44f, timeY, timePaint)
                 if (config.showDate) {
-                    canvas.drawText(dateString.uppercase(), 48f, targetHeight * 0.76f, datePaint)
+                    canvas.drawText(dateString.uppercase(), 48f, timeY + targetHeight * 0.24f, datePaint)
                 }
             }
             ClockStyle.TERMINAL -> {
@@ -192,15 +231,18 @@ object WidgetRenderer {
                     color = accentColor
                     textSize = targetHeight * 0.38f
                     typeface = Typeface.MONOSPACE
+                    if (textShadow) setShadowLayer(10f, 0f, 2f, Color.argb(180, 0, 0, 0))
                 }
                 val datePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                     color = textColor
                     textSize = targetHeight * 0.11f
                     typeface = Typeface.MONOSPACE
+                    if (textShadow) setShadowLayer(8f, 0f, 2f, Color.argb(180, 0, 0, 0))
                 }
-                canvas.drawText("> $timeString", 40f, targetHeight * 0.45f, termPaint)
+                val timeY = if (config.indicatorPlacement == IndicatorPlacement.ABOVE_CLOCK) targetHeight * 0.58f else targetHeight * 0.45f
+                canvas.drawText("> $timeString", 40f, timeY, termPaint)
                 if (config.showDate) {
-                    canvas.drawText("$dateString", 40f, targetHeight * 0.70f, datePaint)
+                    canvas.drawText("$dateString", 40f, timeY + targetHeight * 0.25f, datePaint)
                 }
             }
             ClockStyle.MINIMAL -> {
@@ -208,15 +250,18 @@ object WidgetRenderer {
                     color = textColor
                     textSize = targetHeight * 0.48f
                     typeface = Typeface.create(Typeface.SANS_SERIF, Typeface.NORMAL)
+                    if (textShadow) setShadowLayer(14f, 0f, 3f, Color.argb(200, 0, 0, 0))
                 }
                 val datePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                     color = Color.GRAY
                     textSize = targetHeight * 0.12f
                     typeface = Typeface.SANS_SERIF
+                    if (textShadow) setShadowLayer(8f, 0f, 2f, Color.argb(180, 0, 0, 0))
                 }
-                canvas.drawText(timeString, 40f, targetHeight * 0.52f, timePaint)
+                val timeY = if (config.indicatorPlacement == IndicatorPlacement.ABOVE_CLOCK) targetHeight * 0.62f else targetHeight * 0.52f
+                canvas.drawText(timeString, 40f, timeY, timePaint)
                 if (config.showDate) {
-                    canvas.drawText(dateString, 44f, targetHeight * 0.75f, datePaint)
+                    canvas.drawText(dateString, 44f, timeY + targetHeight * 0.23f, datePaint)
                 }
             }
             ClockStyle.ANALOG_MINIMAL, ClockStyle.ANALOG_CLASSIC -> {
@@ -1115,10 +1160,21 @@ object WidgetRenderer {
         config: ClockWidgetConfig,
         accentColor: Int
     ) {
-        var badgeRightX = targetWidth - 28f
-        val badgeY = 22f
+        if (config.indicatorPlacement == IndicatorPlacement.HIDDEN) {
+            return
+        }
+
         val badgeWidth = 140f
         val spacing = 12f
+        val badgeHeight = 44f
+        val badgeY = when (config.indicatorPlacement) {
+            IndicatorPlacement.ABOVE_CLOCK -> 22f
+            IndicatorPlacement.BELOW_CLOCK -> targetHeight - badgeHeight - 22f
+            IndicatorPlacement.INLINE -> targetHeight * 0.50f - (badgeHeight / 2f)
+            IndicatorPlacement.HIDDEN -> return
+        }
+
+        var badgeRightX = targetWidth - 28f
 
         if (config.showBattery) {
             drawBatteryBadge(context, canvas, badgeRightX - badgeWidth, badgeY, accentColor)
